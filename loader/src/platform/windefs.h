@@ -5,6 +5,10 @@
 #include <windows.h>
 #else
 
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
+
 #if __has_include(<windows_base.h>)
 #include <windows_base.h>
 #endif

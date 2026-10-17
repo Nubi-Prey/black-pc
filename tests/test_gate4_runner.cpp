@@ -26,76 +26,130 @@ static void check(bool condition, const char *msg)
 
 struct Vertex3D {
     float x, y, z;
+    float nx, ny, nz;
+    float u, v;
     float r, g, b, a;
 };
 
+struct Mat4 { float m[4][4]; };
+
+static Mat4 mat_identity()
+{
+    Mat4 r{};
+    for (int i = 0; i < 4; i++) r.m[i][i] = 1.0f;
+    return r;
+}
+
+static Mat4 mat_mul(const Mat4 &a, const Mat4 &b)
+{
+    Mat4 r{};
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            r.m[i][j] = a.m[i][0] * b.m[0][j] +
+                        a.m[i][1] * b.m[1][j] +
+                        a.m[i][2] * b.m[2][j] +
+                        a.m[i][3] * b.m[3][j];
+        }
+    }
+    return r;
+}
+
+static Mat4 mat_rotate_y(float rad)
+{
+    Mat4 r = mat_identity();
+    r.m[0][0] = std::cos(rad);
+    r.m[0][2] = -std::sin(rad);
+    r.m[2][0] = std::sin(rad);
+    r.m[2][2] = std::cos(rad);
+    return r;
+}
+
+static Mat4 mat_rotate_x(float rad)
+{
+    Mat4 r = mat_identity();
+    r.m[1][1] = std::cos(rad);
+    r.m[1][2] = -std::sin(rad);
+    r.m[2][1] = std::sin(rad);
+    r.m[2][2] = std::cos(rad);
+    return r;
+}
+
+static Mat4 mat_perspective_lh(float fov_rad, float aspect, float znear, float zfar)
+{
+    Mat4 r{};
+    float h = 1.0f / std::tan(fov_rad * 0.5f);
+    float w = h / aspect;
+    float q = zfar / (zfar - znear);
+    r.m[0][0] = w;
+    r.m[1][1] = h;
+    r.m[2][2] = q;
+    r.m[2][3] = 1.0f;
+    r.m[3][2] = -znear * q;
+    return r;
+}
+
+#define CUBE_VERT(px, py, pz, normx, normy, normz, texu, texv, cr, cg, cb) \
+    Vertex3D{ (px), (py), (pz), (normx), (normy), (normz), (texu), (texv), (cr), (cg), (cb), 1.0f }
+
 // Generates an indexed or triangle-list 3D colored cube (36 vertices)
+// CW winding with outward-facing normals and UV coordinates for face borders
 static void build_colored_cube(Vertex3D *out)
 {
-    // 6 faces * 2 triangles * 3 vertices = 36 vertices
     const float p = 0.5f;
 
-    // Front (Z+) - Ruby Red
-    Vertex3D v_front[] = {
-        { -p, -p,  p,  0.9f, 0.2f, 0.2f, 1.0f },
-        {  p, -p,  p,  0.9f, 0.2f, 0.2f, 1.0f },
-        {  p,  p,  p,  1.0f, 0.4f, 0.4f, 1.0f },
-        { -p, -p,  p,  0.9f, 0.2f, 0.2f, 1.0f },
-        {  p,  p,  p,  1.0f, 0.4f, 0.4f, 1.0f },
-        { -p,  p,  p,  1.0f, 0.4f, 0.4f, 1.0f },
-    };
-    // Back (Z-) - Emerald Green
-    Vertex3D v_back[] = {
-        {  p, -p, -p,  0.1f, 0.8f, 0.3f, 1.0f },
-        { -p, -p, -p,  0.1f, 0.8f, 0.3f, 1.0f },
-        { -p,  p, -p,  0.2f, 1.0f, 0.5f, 1.0f },
-        {  p, -p, -p,  0.1f, 0.8f, 0.3f, 1.0f },
-        { -p,  p, -p,  0.2f, 1.0f, 0.5f, 1.0f },
-        {  p,  p, -p,  0.2f, 1.0f, 0.5f, 1.0f },
-    };
-    // Top (Y+) - Sapphire Blue
-    Vertex3D v_top[] = {
-        { -p,  p,  p,  0.2f, 0.4f, 0.9f, 1.0f },
-        {  p,  p,  p,  0.2f, 0.4f, 0.9f, 1.0f },
-        {  p,  p, -p,  0.4f, 0.6f, 1.0f, 1.0f },
-        { -p,  p,  p,  0.2f, 0.4f, 0.9f, 1.0f },
-        {  p,  p, -p,  0.4f, 0.6f, 1.0f, 1.0f },
-        { -p,  p, -p,  0.4f, 0.6f, 1.0f, 1.0f },
-    };
-    // Bottom (Y-) - Amber Gold
-    Vertex3D v_bottom[] = {
-        { -p, -p, -p,  0.9f, 0.7f, 0.1f, 1.0f },
-        {  p, -p, -p,  0.9f, 0.7f, 0.1f, 1.0f },
-        {  p, -p,  p,  1.0f, 0.85f, 0.2f, 1.0f },
-        { -p, -p, -p,  0.9f, 0.7f, 0.1f, 1.0f },
-        {  p, -p,  p,  1.0f, 0.85f, 0.2f, 1.0f },
-        { -p, -p,  p,  1.0f, 0.85f, 0.2f, 1.0f },
-    };
-    // Right (X+) - Cyan
-    Vertex3D v_right[] = {
-        {  p, -p,  p,  0.1f, 0.8f, 0.85f, 1.0f },
-        {  p, -p, -p,  0.1f, 0.8f, 0.85f, 1.0f },
-        {  p,  p, -p,  0.3f, 1.0f, 1.0f, 1.0f },
-        {  p, -p,  p,  0.1f, 0.8f, 0.85f, 1.0f },
-        {  p,  p, -p,  0.3f, 1.0f, 1.0f, 1.0f },
-        {  p,  p,  p,  0.3f, 1.0f, 1.0f, 1.0f },
-    };
-    // Left (X-) - Magenta / Violet
-    Vertex3D v_left[] = {
-        { -p, -p, -p,  0.8f, 0.2f, 0.8f, 1.0f },
-        { -p, -p,  p,  0.8f, 0.2f, 0.8f, 1.0f },
-        { -p,  p,  p,  1.0f, 0.4f, 1.0f, 1.0f },
-        { -p, -p, -p,  0.8f, 0.2f, 0.8f, 1.0f },
-        { -p,  p,  p,  1.0f, 0.4f, 1.0f, 1.0f },
-        { -p,  p, -p,  1.0f, 0.4f, 1.0f, 1.0f },
+    Vertex3D v[36] = {
+        // Front (Z = -p) - Facing Camera, Ruby Red
+        CUBE_VERT(-p,  p, -p,  0, 0,-1,  0,1,  0.95f, 0.20f, 0.25f),
+        CUBE_VERT( p,  p, -p,  0, 0,-1,  1,1,  0.95f, 0.20f, 0.25f),
+        CUBE_VERT( p, -p, -p,  0, 0,-1,  1,0,  0.95f, 0.20f, 0.25f),
+        CUBE_VERT(-p,  p, -p,  0, 0,-1,  0,1,  0.95f, 0.20f, 0.25f),
+        CUBE_VERT( p, -p, -p,  0, 0,-1,  1,0,  0.95f, 0.20f, 0.25f),
+        CUBE_VERT(-p, -p, -p,  0, 0,-1,  0,0,  0.95f, 0.20f, 0.25f),
+
+        // Back (Z = +p) - Emerald Green
+        CUBE_VERT( p,  p,  p,  0, 0, 1,  0,1,  0.15f, 0.85f, 0.35f),
+        CUBE_VERT(-p,  p,  p,  0, 0, 1,  1,1,  0.15f, 0.85f, 0.35f),
+        CUBE_VERT(-p, -p,  p,  0, 0, 1,  1,0,  0.15f, 0.85f, 0.35f),
+        CUBE_VERT( p,  p,  p,  0, 0, 1,  0,1,  0.15f, 0.85f, 0.35f),
+        CUBE_VERT(-p, -p,  p,  0, 0, 1,  1,0,  0.15f, 0.85f, 0.35f),
+        CUBE_VERT( p, -p,  p,  0, 0, 1,  0,0,  0.15f, 0.85f, 0.35f),
+
+        // Top (Y = +p) - Sapphire Blue
+        CUBE_VERT(-p,  p,  p,  0, 1, 0,  0,1,  0.20f, 0.45f, 0.95f),
+        CUBE_VERT( p,  p,  p,  0, 1, 0,  1,1,  0.20f, 0.45f, 0.95f),
+        CUBE_VERT( p,  p, -p,  0, 1, 0,  1,0,  0.20f, 0.45f, 0.95f),
+        CUBE_VERT(-p,  p,  p,  0, 1, 0,  0,1,  0.20f, 0.45f, 0.95f),
+        CUBE_VERT( p,  p, -p,  0, 1, 0,  1,0,  0.20f, 0.45f, 0.95f),
+        CUBE_VERT(-p,  p, -p,  0, 1, 0,  0,0,  0.20f, 0.45f, 0.95f),
+
+        // Bottom (Y = -p) - Amber Gold
+        CUBE_VERT(-p, -p, -p,  0,-1, 0,  0,1,  0.95f, 0.75f, 0.15f),
+        CUBE_VERT( p, -p, -p,  0,-1, 0,  1,1,  0.95f, 0.75f, 0.15f),
+        CUBE_VERT( p, -p,  p,  0,-1, 0,  1,0,  0.95f, 0.75f, 0.15f),
+        CUBE_VERT(-p, -p, -p,  0,-1, 0,  0,1,  0.95f, 0.75f, 0.15f),
+        CUBE_VERT( p, -p,  p,  0,-1, 0,  1,0,  0.95f, 0.75f, 0.15f),
+        CUBE_VERT(-p, -p,  p,  0,-1, 0,  0,0,  0.95f, 0.75f, 0.15f),
+
+        // Right (X = +p) - Cyan
+        CUBE_VERT( p,  p, -p,  1, 0, 0,  0,1,  0.15f, 0.85f, 0.90f),
+        CUBE_VERT( p,  p,  p,  1, 0, 0,  1,1,  0.15f, 0.85f, 0.90f),
+        CUBE_VERT( p, -p,  p,  1, 0, 0,  1,0,  0.15f, 0.85f, 0.90f),
+        CUBE_VERT( p,  p, -p,  1, 0, 0,  0,1,  0.15f, 0.85f, 0.90f),
+        CUBE_VERT( p, -p,  p,  1, 0, 0,  1,0,  0.15f, 0.85f, 0.90f),
+        CUBE_VERT( p, -p, -p,  1, 0, 0,  0,0,  0.15f, 0.85f, 0.90f),
+
+        // Left (X = -p) - Magenta
+        CUBE_VERT(-p,  p,  p, -1, 0, 0,  0,1,  0.90f, 0.25f, 0.85f),
+        CUBE_VERT(-p,  p, -p, -1, 0, 0,  1,1,  0.90f, 0.25f, 0.85f),
+        CUBE_VERT(-p, -p, -p, -1, 0, 0,  1,0,  0.90f, 0.25f, 0.85f),
+        CUBE_VERT(-p,  p,  p, -1, 0, 0,  0,1,  0.90f, 0.25f, 0.85f),
+        CUBE_VERT(-p, -p, -p, -1, 0, 0,  1,0,  0.90f, 0.25f, 0.85f),
+        CUBE_VERT(-p, -p,  p, -1, 0, 0,  0,0,  0.90f, 0.25f, 0.85f),
     };
 
-    std::memcpy(out + 0,  v_front,  sizeof(v_front));
-    std::memcpy(out + 6,  v_back,   sizeof(v_back));
-    std::memcpy(out + 12, v_top,    sizeof(v_top));
-    std::memcpy(out + 18, v_bottom, sizeof(v_bottom));
-    std::memcpy(out + 24, v_right,  sizeof(v_right));
-    std::memcpy(out + 30, v_left,   sizeof(v_left));
+    for (int i = 0; i < 36; ++i) {
+        out[i] = v[i];
+    }
 }
 
 int main(int argc, char **argv)
@@ -165,29 +219,51 @@ int main(int argc, char **argv)
 
     // 7. Compile HLSL Vertex Shader & Pixel Shader via Linux D3DCompile
     const char *vs_src =
-        "float4x4 u_matrix   : register(c0);\n"
-        "float4   u_tint     : register(c4);\n"
+        "row_major float4x4 u_wvp   : register(c0);\n"
+        "row_major float4x4 u_world : register(c4);\n"
+        "float4             u_light : register(c8);\n"
+        "float4             u_tint  : register(c9);\n"
         "struct VS_IN {\n"
-        "    float3 pos : POSITION;\n"
-        "    float4 col : COLOR0;\n"
+        "    float3 pos    : POSITION;\n"
+        "    float3 normal : NORMAL;\n"
+        "    float2 uv     : TEXCOORD0;\n"
+        "    float4 col    : COLOR0;\n"
         "};\n"
         "struct VS_OUT {\n"
-        "    float4 pos : POSITION;\n"
-        "    float4 col : COLOR0;\n"
+        "    float4 pos    : POSITION;\n"
+        "    float4 col    : COLOR0;\n"
+        "    float2 uv     : TEXCOORD0;\n"
+        "    float3 normal : TEXCOORD1;\n"
         "};\n"
         "VS_OUT main(VS_IN vin) {\n"
         "    VS_OUT vout;\n"
-        "    vout.pos = mul(u_matrix, float4(vin.pos, 1.0f));\n"
-        "    vout.col = vin.col * u_tint;\n"
+        "    vout.pos = mul(float4(vin.pos, 1.0f), u_wvp);\n"
+        "    float3 norm_world = normalize(mul(vin.normal, (float3x3)u_world));\n"
+        "    float3 light_dir = normalize(u_light.xyz);\n"
+        "    float diff = max(0.0f, dot(norm_world, light_dir));\n"
+        "    float light_intensity = u_light.w + (1.0f - u_light.w) * diff;\n"
+        "    vout.col = float4(vin.col.rgb * light_intensity * u_tint.rgb, vin.col.a);\n"
+        "    vout.uv = vin.uv;\n"
+        "    vout.normal = norm_world;\n"
         "    return vout;\n"
         "}\n";
 
     const char *ps_src =
         "struct PS_IN {\n"
-        "    float4 col : COLOR0;\n"
+        "    float4 col    : COLOR0;\n"
+        "    float2 uv     : TEXCOORD0;\n"
+        "    float3 normal : TEXCOORD1;\n"
         "};\n"
         "float4 main(PS_IN pin) : COLOR0 {\n"
-        "    return pin.col;\n"
+        "    float2 d = min(pin.uv, 1.0f - pin.uv);\n"
+        "    float edge = min(d.x, d.y);\n"
+        "    float border = smoothstep(0.02f, 0.05f, edge);\n"
+        "    float3 view_dir = float3(0.0f, 0.0f, -1.0f);\n"
+        "    float3 light_dir = normalize(float3(0.5f, 0.8f, -0.7f));\n"
+        "    float3 half_vec = normalize(light_dir + view_dir);\n"
+        "    float spec = pow(max(0.0f, dot(pin.normal, half_vec)), 16.0f) * 0.35f;\n"
+        "    float3 final_rgb = pin.col.rgb * (0.35f + 0.65f * border) + spec;\n"
+        "    return float4(final_rgb, pin.col.a);\n"
         "}\n";
 
     ID3DBlob *vs_blob = nullptr;
@@ -218,7 +294,9 @@ int main(int argc, char **argv)
     // 9. Create Vertex Declaration
     D3DVERTEXELEMENT9 elems[] = {
         { 0, 0,  D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
-        { 0, 12, D3DDECLTYPE_FLOAT4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR,    0 },
+        { 0, 12, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_NORMAL,   0 },
+        { 0, 24, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 },
+        { 0, 32, D3DDECLTYPE_FLOAT4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR,    0 },
         D3DDECL_END()
     };
     IDirect3DVertexDeclaration9 *decl = nullptr;
@@ -241,9 +319,11 @@ int main(int argc, char **argv)
 
     std::printf("[Gate 4] 3D Cube geometry buffer initialized (36 vertices)\n");
 
-    // Set hardware render states: depth buffer enabled, culling disabled for 3D visibility
+    // Set hardware render states: depth buffer enabled, CCW culling
     dev->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
-    dev->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+    dev->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+    dev->SetRenderState(D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
+    dev->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
 
     // 11. Render & Interaction Loop
     float rot_x = 0.4f;
@@ -316,24 +396,25 @@ int main(int argc, char **argv)
             }
         }
 
-        // Calculate 3D Matrix with Perspective Projection
-        float cx = std::cos(rot_x), sx = std::sin(rot_x);
-        float cy = std::cos(rot_y), sy = std::sin(rot_y);
-        float aspect = 16.0f / 9.0f;
-        float sc = zoom * 0.75f;
+        // 3D Perspective Matrix Setup
+        Mat4 rx = mat_rotate_x(rot_x);
+        Mat4 ry = mat_rotate_y(rot_y);
+        Mat4 world = mat_mul(rx, ry);
 
-        // Combined 3D model-view-projection matrix (Row-major for HLSL mul(matrix, pos))
-        float mat[16] = {
-             (cy * sc) / aspect,       (sx * sy * sc) / aspect,       (-cx * sy * sc) / aspect,       0.0f,
-              0.0f,                     cx * sc,                       sx * sc,                       0.0f,
-             (sy * sc) * 0.5f,        (-sx * cy * sc) * 0.5f,         (cx * cy * sc) * 0.5f,          0.5f,
-              0.0f,                     0.0f,                          0.0f,                          1.0f
-        };
+        Mat4 view = mat_identity();
+        view.m[3][2] = 2.8f / zoom; // Camera eye at (0, 0, -2.8 / zoom)
+
+        Mat4 proj = mat_perspective_lh(55.0f * 3.14159265f / 180.0f, 16.0f / 9.0f, 0.1f, 100.0f);
+        Mat4 wvp = mat_mul(mat_mul(world, view), proj);
+
+        float light[4] = { 0.5f, 0.8f, -0.7f, 0.35f }; // Direction (x, y, z), Ambient (w)
 
         // Tint modulation vector
         float tint[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
         if (pad0.Gamepad.bAnalogButtons[7] > 0) { // RT gives amber/red glow
             tint[0] = 1.0f + (pad0.Gamepad.bAnalogButtons[7] / 255.0f) * 0.5f;
+            tint[1] = 1.0f - (pad0.Gamepad.bAnalogButtons[7] / 255.0f) * 0.2f;
+            tint[2] = 1.0f - (pad0.Gamepad.bAnalogButtons[7] / 255.0f) * 0.3f;
         }
 
         // Render Frame
@@ -344,8 +425,10 @@ int main(int argc, char **argv)
                         D3DCOLOR_XRGB(14, 20, 32), 1.0f, 0);
         check(SUCCEEDED(hr), "dev->Clear failed");
 
-        dev->SetVertexShaderConstantF(0, mat, 4);
-        dev->SetVertexShaderConstantF(4, tint, 1);
+        dev->SetVertexShaderConstantF(0, (const float*)&wvp, 4);
+        dev->SetVertexShaderConstantF(4, (const float*)&world, 4);
+        dev->SetVertexShaderConstantF(8, light, 1);
+        dev->SetVertexShaderConstantF(9, tint, 1);
         dev->SetVertexDeclaration(decl);
         dev->SetStreamSource(0, vb, 0, sizeof(Vertex3D));
         dev->SetVertexShader(vs);
