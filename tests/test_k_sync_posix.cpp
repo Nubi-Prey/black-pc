@@ -74,6 +74,35 @@ int main()
 
     xposix::NtClose(h_event);
 
+    // 4. Testar Contenção Real Multithread com 4 threads na Critical Section
+    printf("\n[+] Testando contenção real multithread com 4 threads na Critical Section...\n");
+    static volatile int g_shared_counter = 0;
+    const int kIterations = 25000;
+    const int kNumThreads = 4;
+    pthread_t threads[kNumThreads];
+
+    auto contention_worker = [](void *) -> void * {
+        for (int i = 0; i < kIterations; ++i) {
+            xposix::RtlEnterCriticalSection(&g_cs);
+            int cur = g_shared_counter;
+            g_shared_counter = cur + 1;
+            xposix::RtlLeaveCriticalSection(&g_cs);
+        }
+        return nullptr;
+    };
+
+    for (int i = 0; i < kNumThreads; ++i) {
+        pthread_create(&threads[i], nullptr, contention_worker, nullptr);
+    }
+    for (int i = 0; i < kNumThreads; ++i) {
+        pthread_join(threads[i], nullptr);
+    }
+    printf("    Contador compartilhado final: %d (esperado: %d)\n",
+           g_shared_counter, kNumThreads * kIterations);
+    assert(g_shared_counter == kNumThreads * kIterations &&
+           "Contador deve bater 100% sem perda de atualizações sob exclusão mútua!");
+    printf("    [PASS] Exclusão mútua concorrente confirmada sem race conditions!\n");
+
     printf("\n>> TESTE DE SINCRONIZAÇÃO POSIX PASSOU COM SUCESSO!\n\n");
     return 0;
 }

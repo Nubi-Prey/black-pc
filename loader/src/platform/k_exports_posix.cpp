@@ -366,7 +366,10 @@ extern "C" uint64_t __attribute__((stdcall)) kposix_stub_called(uint32_t ordinal
         break;
     case 49: // HalReturnToFirmware
     case 360: // HalInitiateShutdown
-        printf("k_exports_posix: HalReturnToFirmware/Shutdown called!\n");
+        fprintf(stderr, "\n[FATAL KERNEL HALT] HalReturnToFirmware/Shutdown called! Routine=%u (0x%X), caller EBP=%p\n",
+                args[0], args[0], __builtin_frame_address(0));
+        fprintf(stderr, "A execução do jogo foi abortada pelo kernel do Xbox devido a um erro fatal ou requisição de desligamento.\n");
+        _exit(99);
         ret_val = 0;
         break;
 
@@ -631,6 +634,7 @@ extern "C" uint64_t __attribute__((stdcall)) kposix_stub_called(uint32_t ordinal
                                        (void *)(uintptr_t)args[2], (void *)(uintptr_t)args[3],
                                        (void *)(uintptr_t)args[4], (void *)(uintptr_t)args[5],
                                        args[6], (const LARGE_INTEGER *)(uintptr_t)args[7]);
+        printf("  [VFS] NtReadFile handle=%p length=%u -> status=0x%08X\n", (void *)(uintptr_t)args[0], args[6], ret_val);
         break;
     case 226: // NtSetInformationFile
         ret_val = 0;

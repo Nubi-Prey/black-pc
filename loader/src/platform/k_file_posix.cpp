@@ -109,8 +109,23 @@ void file_init(const std::string &game_dir, const std::string &savedata_dir)
     std::lock_guard<std::recursive_mutex> lock(g_file_mutex);
     if (g_initialized) return;
 
+    std::string p0_path = savedata_dir + "/Partition0.bin";
+    struct stat st_p0;
+    if (stat(p0_path.c_str(), &st_p0) != 0) {
+        mkdir(savedata_dir.c_str(), 0777);
+        int fd = open(p0_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+        if (fd >= 0) {
+            uint8_t zero[4096] = {0};
+            for (int i = 0; i < 16; i++) {
+                ssize_t written = write(fd, zero, sizeof(zero));
+                (void)written;
+            }
+            close(fd);
+        }
+    }
+
     g_mounts.push_back({ "\\Device\\CdRom0", "\\device\\cdrom0", game_dir, true });
-    g_mounts.push_back({ "\\Device\\Harddisk0\\Partition0", "\\device\\harddisk0\\partition0", savedata_dir + "/Partition0", false });
+    g_mounts.push_back({ "\\Device\\Harddisk0\\Partition0", "\\device\\harddisk0\\partition0", p0_path, false });
     g_mounts.push_back({ "\\Device\\Harddisk0\\Partition1", "\\device\\harddisk0\\partition1", savedata_dir + "/Partition1", false });
     g_mounts.push_back({ "\\Device\\Harddisk0\\Partition5", "\\device\\harddisk0\\partition5", savedata_dir + "/Partition5", false });
 
@@ -211,7 +226,7 @@ NTSTATUS NtCreateFile(HANDLE *out_handle, ACCESS_MASK desired_access, void *obj_
     }
 
     int flags = O_RDONLY;
-    if (desired_access & 0x0002) flags = O_RDWR; // FILE_WRITE_DATA
+    if (desired_access & (0x40000000 | 0x10000000 | 0x0002 | 0x0004)) flags = O_RDWR;
     if (create_disp == 2) flags |= O_CREAT | O_TRUNC; // FILE_CREATE
     if (create_disp == 3) flags |= O_CREAT; // FILE_OPEN_IF
 
@@ -442,6 +457,7 @@ NTSTATUS NtQueryDirectoryFile(HANDLE handle, HANDLE event, void *apc_routine, vo
                              void *file_name, bool restart_scan)
 {
     (void)event; (void)apc_routine; (void)apc_context; (void)length; (void)info_class; (void)file_name;
+    (void)return_single_entry;
     std::lock_guard<std::recursive_mutex> lock(g_file_mutex);
     auto it = g_open_files.find(handle);
     if (it == g_open_files.end() || !it->second->is_dir) return 0xC0000008L;

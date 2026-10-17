@@ -347,8 +347,9 @@ int main(int argc, char **argv)
         printf("    - Parada da execução em EIP:        0x%08X (sinal %d)\n", (unsigned int)g_crash_ip, g_crashed);
     }
 
-    // Validar que o código do jogo executou com sucesso
-    assert((returned_cleanly || g_kernel_calls_intercepted > 0) && "O ponto de entrada foi executado pela CPU!");
+    // Validar que o código do jogo executou com sucesso e retornou limpo
+    assert(returned_cleanly && g_kernel_calls_intercepted >= 2 &&
+           "O ponto de entrada da CRT deve invocar o kernel e retornar normalmente sem crash!");
     printf("\n>>> GATE 1 VALIDADO COM SUCESSO ABSOLUTO! O binário real executou nativamente no Linux! <<<\n\n");
 
     munmap(ram, 64 * 1024 * 1024);

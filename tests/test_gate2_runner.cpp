@@ -25,15 +25,47 @@ namespace {
 std::atomic<bool> g_gate2_passed{false};
 std::atomic<bool> g_d3d_hook_hit{false};
 uint32_t g_hit_address = 0;
+uint32_t g_boot_entry_addr = 0;
+
+struct D3DDISPLAYMODE {
+    uint32_t Width;
+    uint32_t Height;
+    uint32_t RefreshRate;
+    uint32_t Format;
+};
+
+#pragma pack(push, 1)
+struct D3DPRESENT_PARAMETERS {
+    uint32_t BackBufferWidth;
+    uint32_t BackBufferHeight;
+    uint32_t BackBufferFormat;
+    uint32_t BackBufferCount;
+    uint32_t MultiSampleType;
+    uint32_t SwapEffect;
+    void    *hDeviceWindow;
+    uint32_t Windowed;
+    uint32_t EnableAutoDepthStencil;
+    uint32_t AutoDepthStencilFormat;
+    uint32_t Flags;
+    uint32_t FullScreen_RefreshRateInHz;
+    uint32_t FullScreen_PresentationInterval;
+};
+#pragma pack(pop)
 
 // D3D Hook Prototypes
 extern "C" uint32_t __stdcall gate2_d3d_enum_adapter_modes(uint32_t adapter, uint32_t mode, void *pmode)
 {
-    (void)adapter; (void)mode; (void)pmode;
+    (void)adapter;
+    if (pmode) {
+        D3DDISPLAYMODE *dm = (D3DDISPLAYMODE *)pmode;
+        dm->Width = 640;
+        dm->Height = 480;
+        dm->RefreshRate = 60;
+        dm->Format = 21; // D3DFMT_X8R8G8B8
+    }
     printf("\n****************************************************************\n");
-    printf(">>> [GATE 2 CRITERION REACHED] Direct3D_EnumAdapterModes (0x00277640)!\n");
-    printf("    A thread principal 'mainXapiStartup' inicializou o kernel HLE,\n");
-    printf("    montou o VFS, calibrou timing a 733MHz e alcançou o subsistema gráfico!\n");
+    printf(">>> [D3D ENUM MODES] Direct3D_EnumAdapterModes (0x00277640) chamado!\n");
+    printf("    Modo requisitado: %u -> preenchido com 640x480 @ 60Hz (Format=21)\n", mode);
     printf("****************************************************************\n\n");
     g_hit_address = 0x00277640;
     g_d3d_hook_hit = true;
@@ -44,7 +76,7 @@ extern "C" uint32_t __stdcall gate2_d3d_enum_adapter_modes(uint32_t adapter, uin
 extern "C" uint32_t __stdcall gate2_d3d_get_adapter_mode_count(uint32_t adapter)
 {
     (void)adapter;
-    printf("\n>>> [GATE 2 CRITERION REACHED] Direct3D_GetAdapterModeCount (0x00277580)!\n");
+    printf("\n>>> [D3D MODE COUNT] Direct3D_GetAdapterModeCount (0x00277580) chamado! Retornando 1\n");
     g_hit_address = 0x00277580;
     g_d3d_hook_hit = true;
     g_gate2_passed = true;
@@ -54,12 +86,43 @@ extern "C" uint32_t __stdcall gate2_d3d_get_adapter_mode_count(uint32_t adapter)
 extern "C" uint32_t __stdcall gate2_d3d_create_device(uint32_t adapter, uint32_t dev_type, void *focus_wnd,
                                                       uint32_t behavior, void *params, void **out_dev)
 {
-    (void)adapter; (void)dev_type; (void)focus_wnd; (void)behavior; (void)params; (void)out_dev;
+    (void)focus_wnd;
+    void *caller_return = __builtin_return_address(0);
+    uintptr_t caller_ip = (uintptr_t)caller_return;
+
     printf("\n****************************************************************\n");
     printf(">>> [GATE 2 CRITERION REACHED] Direct3D_CreateDevice (0x0026C620)!\n");
-    printf("    A thread principal 'mainXapiStartup' inicializou o kernel HLE,\n");
-    printf("    montou o VFS, calibrou timing a 733MHz e alcançou o subsistema gráfico!\n");
-    printf("****************************************************************\n\n");
+    printf("    Caller return address: %p\n", caller_return);
+    printf("    Adapter: %u, DevType: %u, BehaviorFlags: 0x%08X\n", adapter, dev_type, behavior);
+
+    assert(params != nullptr && "D3DPRESENT_PARAMETERS pointer não pode ser nulo!");
+    D3DPRESENT_PARAMETERS *p = (D3DPRESENT_PARAMETERS *)params;
+    printf("    Display Parameters reais enviados pelo jogo:\n");
+    printf("      - BackBuffer:           %u x %u (Format: %u, Count: %u)\n",
+           p->BackBufferWidth, p->BackBufferHeight, p->BackBufferFormat, p->BackBufferCount);
+    printf("      - Multisample:          %u, SwapEffect: %u\n", p->MultiSampleType, p->SwapEffect);
+    printf("      - AutoDepthStencil:     %u (Format: %u)\n", p->EnableAutoDepthStencil, p->AutoDepthStencilFormat);
+    printf("      - Taxa de Atualização:  %u Hz, Intervalo: 0x%08X\n",
+           p->FullScreen_RefreshRateInHz, p->FullScreen_PresentationInterval);
+
+    // Validações rigorosas de dados reais em tempo de execução
+    assert(p->BackBufferWidth == 640 && "Largura do BackBuffer deve ser 640");
+    assert(p->BackBufferHeight == 480 && "Altura do BackBuffer deve ser 480");
+    assert(p->FullScreen_RefreshRateInHz == 60 && "Taxa de atualização deve ser 60 Hz");
+    assert(caller_ip >= 0x00010000 && caller_ip <= 0x00300000 &&
+           "Caller deve estar dentro do código nativo mapeado do default.xbe");
+
+    // Verificar KTHREAD ativa em %fs:[0x28]
+    void *cur_thread = nullptr;
+    __asm__ volatile ("movl %%fs:0x28, %0" : "=r"(cur_thread));
+    printf("    Thread ativa em %%fs:[0x28]: %p\n", cur_thread);
+    assert(cur_thread != nullptr && "Thread ativa em %fs:[0x28] deve ser válida!");
+
+    if (out_dev) {
+        static uint32_t dummy_d3d_device[64] = {0};
+        *out_dev = dummy_d3d_device;
+    }
+
     g_hit_address = 0x0026C620;
     g_d3d_hook_hit = true;
     g_gate2_passed = true;
@@ -67,12 +130,12 @@ extern "C" uint32_t __stdcall gate2_d3d_create_device(uint32_t adapter, uint32_t
     printf("\n==========================================================\n");
     printf("     >>> PARABÉNS! GATE 2 FOI 100%% VALIDADO E APROVADO! <<<\n");
     printf("==========================================================\n");
-    printf("  - Thread de boot:              SUCESSO (0x00025A3F)\n");
-    printf("  - Thread mainXapiStartup:      SUCESSO (0x000259CB)\n");
-    printf("  - Sistema VFS & Mounts:        SUCESSO (CdRom0, Partition1/5)\n");
-    printf("  - Subsistema de Sincronização: SUCESSO (RTL_CRITICAL_SECTION, Events, Semaphores)\n");
-    printf("  - Calibração de Timing 733MHz: SUCESSO (Monotonic Clock, 60 FPS Patches)\n");
-    printf("  - Primeira chamada D3D:        0x0026C620 (ATINGIDA)\n");
+    printf("  - Entry Point do XBE:          0x%08X (VALIDADO)\n", g_boot_entry_addr);
+    printf("  - Resolução gráfica:           %u x %u @ %u Hz (VALIDADO)\n",
+           p->BackBufferWidth, p->BackBufferHeight, p->FullScreen_RefreshRateInHz);
+    printf("  - Caller verificado em .text:  %p (VALIDADO)\n", caller_return);
+    printf("  - Thread KTHREAD em %%fs:       %p (VALIDADO)\n", cur_thread);
+    printf("  - Primeira chamada D3D:        0x%08X (ATINGIDA)\n", g_hit_address);
     printf("==========================================================\n\n");
 
     fflush(stdout);
@@ -223,6 +286,7 @@ int main(int argc, char **argv)
         return 1;
     }
     printf("[+] default.xbe mapeado em 0x00010000 com sucesso!\n");
+    g_boot_entry_addr = loader.entry;
     xposix::set_tls_index_ptr(0x002B27F8);
 
     // 3. Resolver 115 imports do kernel do Xbox
