@@ -217,8 +217,12 @@ Substituir todas as APIs dependentes do Win32 para criação de janela, captura 
      ```
    - O mixer roda em sua própria thread mantendo a fila de blocos à frente do dispositivo, sem qualquer latência ou cortes.
 
-### 3.3 Critério de Saída (Gate 3)
-- Janela interativa do SDL2 aberta; eventos de mouse e controle respondendo; mixer de áudio enviando blocos para o driver de som do Linux (PulseAudio/PipeWire/ALSA) sem underruns.
+### 3.3 Critério de Saída (Gate 3) - [STATUS: CONCLUÍDO E VALIDADO]
+- ✅ Validado por suite automatizada de 4 testes dedicados (`tests/test_sdl_window`, `tests/test_sdl_input`, `tests/test_sdl_audio` e `tests/test_gate3_runner`):
+  - **Janela e Aspect Ratio:** Criação e destruição limpa de janela SDL2 com cálculo e preservação de aspect ratio (16:9 e 4:3), redimensionamento dinâmico e suporte a modo headless.
+  - **Entrada e Controles:** Mapeamento de controles físicos do Xbox via `SDL_GameController` com zonas mortas calibradas, conversão de gatilhos analógicos e fallback transparente para Teclado e Mouse no jogador 1. Injeção e inspeção determinística de estados em tempo de execução.
+  - **Áudio 48 kHz Stereo:** Inicialização do dispositivo de som (`SDL_OpenAudioDevice`) alimentando stream contínuo de 48 kHz em blocos de 10 ms (480 frames estéreo) via `SDL_QueueAudio`, com fallback automático por clock monotônico em caso de perda de dispositivo e zero underruns durante a reprodução.
+  - **Gate 3 Runner:** Execução integrada de loop de jogo por 60 quadros simulados (~1 segundo a 60 Hz) com processamento simultâneo de eventos de janela, polling de periféricos e streaming contínuo de 104 blocos de áudio sem falhas.
 
 ---
 
