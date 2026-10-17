@@ -28,6 +28,7 @@ notes/ghidra-strings.txt
 # Loader build output and run artifacts (the HDD folder holds game-written data)
 loader/build/
 hdd/
+savedata/
 *.raw
 black.log
 
@@ -39,6 +40,11 @@ tests/test_xbe_parser
 tests/test_xbe_loader_map
 tests/test_thunk_dispatcher
 tests/test_boot_entry
+tests/test_k_sync_posix
+tests/test_k_file_posix
+tests/test_k_thread_posix
+tests/test_k_memory_posix
+tests/test_gate2_runner
 
 # Local launcher shortcut (machine-specific; its icon comes from the user's XBE)
 *.lnk

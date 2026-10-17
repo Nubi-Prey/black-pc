@@ -175,8 +175,15 @@ Reimplementar os 115 serviços do kernel do Xbox utilizando as APIs padrão POSI
    - Substituir o RDTSC do Xbox pelo contador proporcional calibrado para exatamente 733.333.333 Hz.
    - Aplicar os patches de 60 fps (divisor de tempo de frame, constante de refire de armas) nos endereços estáticos do binário.
 
-### 2.3 Critério de Saída (Gate 2)
-- O jogo inicializa com sucesso a thread de boot, cria a thread principal `mainXapiStartup`, monta as partições do HDD em disco, verifica arquivos de save e avança até a primeira chamada gráfica (`Direct3D_EnumAdapterModes`), sem nenhuma chamada não implementada ou travamento de thread.
+### 2.3 Critério de Saída (Gate 2) - [STATUS: CONCLUÍDO E VALIDADO]
+- ✅ Validado com 100% de sucesso pela bateria de integração (`tests/test_gate2_runner`, `tests/test_k_sync_posix`, `tests/test_k_file_posix`, `tests/test_k_thread_posix`, `tests/test_k_memory_posix`):
+  - A thread de boot (`0x00025A3F`) executa nativamente e inicializa o runtime C.
+  - A thread principal `mainXapiStartup` (`0x000259CB`) é criada e inicializada com KPCR e %fs isolados e TLS autêntico do Xbox.
+  - VFS POSIX monta `CdRom0` (`./game`), `Partition1` (`./savedata/Partition1` com `TDATA` e `UDATA`), `Partition5` (`./savedata/Partition5`) e `Partition0` (`./savedata/Partition0`).
+  - Resolução case-insensitive e criação automática de diretórios Title ID (`45410083`) e metadados (`TitleMeta.xbx`, `TitleImage.xbx`, `SaveImage.xbx`) operam sem falhas.
+  - Sincronização atômica em `XRTL_CRITICAL_SECTION`, eventos e semáforos POSIX totalmente operacionais.
+  - Monotonic clock do Linux calibrado a 733.333.333 Hz e patches de 60 FPS aplicados no binário mapeado.
+  - A thread principal avança sem nenhuma chamada pendente ou erro, consumindo `Direct3D_EnumAdapterModes` (`0x00277640`), `Direct3D_GetAdapterModeCount` (`0x00277580`) e atingindo `Direct3D_CreateDevice` (`0x0026C620`).
 
 ---
 
