@@ -22,7 +22,7 @@ Setup for this machine: `PC_SETUP.md` (CMake is bundled with VS 18 Build Tools, 
 
 - **Never commit, upload or share**: `game/`, `*.xbe`, `*.iso`, `work/` (decompiler output), `ghidra/` (analysed binary), `notes/ghidra-strings.txt`.
   They are in `.gitignore`; check it still is before any `git add`. No Microsoft XDK headers/libs/code in the repo.
-- Do not run `git commit`/`push` or `git init` without the user asking. Publishing is the user's call.
+- **STRICT LOCAL DEVELOPMENT (NO CONTRIBUTIONS / NO GIT PUSH):** This is a public open-source project. The user is developing modifications and the native Linux x86 port locally and does NOT want to make any contributions or transfer data upstream for now. NEVER run `git push` or any git command that sends data. Do not run `git commit`/`git init` without the user explicitly asking. Publishing/contributing is the user's call.
 - The user supplies the dump; the loader reads `default.xbe` and assets from a path at runtime. Nothing game-derived is embedded in the loader.
 - Cxbx-Reloaded and xemu are GPL: read them as reference; do not paste their code into this project without the user deciding the license first.
 - Everything under `tools/` third-party clones and `tools/bin/` is local only (also git-ignored). macOS binaries in `tools/bin/` do not run on Windows.
