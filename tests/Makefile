@@ -116,7 +116,12 @@ run: all
 	@echo "       TODOS OS TESTES FORAM CONCLUÍDOS COM SUCESSO!      "
 	@echo "=========================================================="
 
+demo: test_gate3_runner
+	./test_gate3_runner --interactive
+
+run-gui: demo
+
 clean:
 	rm -f $(TARGETS)
 
-.PHONY: all run clean
+.PHONY: all run run-gui demo clean
