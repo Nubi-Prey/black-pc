@@ -91,6 +91,8 @@ test_d3dcompiler_posix: test_d3dcompiler_posix.cpp ../loader/src/platform/d3dcom
 
 test_gate4_runner: test_gate4_runner.cpp ../loader/src/platform/host_d3d9_linux.cpp \
                    ../loader/src/platform/host_sdl.cpp \
+                   ../loader/src/platform/input_sdl.cpp \
+                   ../loader/src/platform/audio_sdl.cpp \
                    ../loader/src/platform/d3dcompiler_posix.cpp
 	$(CXX) $(CXXFLAGS) $(DXVK_CFLAGS) $^ -o $@ $(LDFLAGS) $(DXVK_LDFLAGS)
 
@@ -145,15 +147,17 @@ run: all
 	@echo "       TODOS OS TESTES FORAM CONCLUÍDOS COM SUCESSO!      "
 	@echo "=========================================================="
 
-demo: test_gate3_runner
-	./test_gate3_runner --interactive
-
-demo-gate4: test_gate4_runner
+demo: test_gate4_runner
 	DXVK_WSI_DRIVER=SDL2 ./test_gate4_runner --interactive
 
-run-gui: demo-gate4
+demo-gate3: test_gate3_runner
+	./test_gate3_runner --interactive
+
+demo-gate4: demo
+
+run-gui: demo
 
 clean:
 	rm -f $(TARGETS)
 
-.PHONY: all run run-gui demo demo-gate4 clean
+.PHONY: all run run-gui demo demo-gate3 demo-gate4 clean
