@@ -1,10 +1,11 @@
-// Unit Test: Full DXVK-Native Pipeline (Shaders, Geometry and Rendering) for Linux x86 (Phase 4)
+#include <d3dcompiler.h>
 #include <d3d9.h>
 #include <wsi/native_sdl2.h>
 #include <SDL2/SDL.h>
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <vector>
 
 static void check(bool cond, const char *msg)
@@ -13,19 +14,6 @@ static void check(bool cond, const char *msg)
         std::fprintf(stderr, "[FAIL] %s\n", msg);
         std::exit(1);
     }
-}
-
-static std::vector<uint8_t> read_file(const char *path)
-{
-    FILE *f = std::fopen(path, "rb");
-    check(f != nullptr, "Failed to open shader file");
-    std::fseek(f, 0, SEEK_END);
-    long sz = std::ftell(f);
-    std::fseek(f, 0, SEEK_SET);
-    std::vector<uint8_t> data(sz);
-    std::fread(data.data(), 1, sz, f);
-    std::fclose(f);
-    return data;
 }
 
 int main()
@@ -64,20 +52,39 @@ int main()
     check(SUCCEEDED(hr) && dev != nullptr, "CreateDevice failed");
     std::printf("[test_dxvk_draw_pipeline] Direct3D9 device initialized successfully\n");
 
-    // 4. Load pre-compiled shaders
-    auto vs_code = read_file("/tmp/test_vs.bin");
-    auto ps_code = read_file("/tmp/test_ps.bin");
-    check(vs_code.size() > 0 && ps_code.size() > 0, "Shader code empty");
+    // 4. Compile shaders via D3DCompile runtime (standalone, zero /tmp dependency)
+    const char *vs_src =
+        "row_major float4x4 g_m : register(c0);\n"
+        "struct VS_IN  { float4 pos : POSITION; };\n"
+        "struct VS_OUT { float4 pos : POSITION; };\n"
+        "VS_OUT main(VS_IN vin) {\n"
+        "    VS_OUT vout;\n"
+        "    vout.pos = mul(vin.pos, g_m);\n"
+        "    return vout;\n"
+        "}\n";
+
+    const char *ps_src =
+        "float4 main() : COLOR {\n"
+        "    return float4(0.2f, 0.4f, 0.8f, 1.0f);\n"
+        "}\n";
+
+    ID3DBlob *vs_blob = nullptr, *err_blob = nullptr;
+    hr = D3DCompile(vs_src, std::strlen(vs_src), "pipe_vs", nullptr, nullptr, "main", "vs_2_0", 0, 0, &vs_blob, &err_blob);
+    check(SUCCEEDED(hr) && vs_blob != nullptr, "D3DCompile failed for Vertex Shader");
+
+    ID3DBlob *ps_blob = nullptr;
+    hr = D3DCompile(ps_src, std::strlen(ps_src), "pipe_ps", nullptr, nullptr, "main", "ps_2_0", 0, 0, &ps_blob, &err_blob);
+    check(SUCCEEDED(hr) && ps_blob != nullptr, "D3DCompile failed for Pixel Shader");
 
     IDirect3DVertexShader9 *vs = nullptr;
-    hr = dev->CreateVertexShader((const DWORD *)vs_code.data(), &vs);
+    hr = dev->CreateVertexShader((const DWORD *)vs_blob->GetBufferPointer(), &vs);
     check(SUCCEEDED(hr) && vs != nullptr, "CreateVertexShader failed in DXVK");
-    std::printf("[test_dxvk_draw_pipeline] Vertex Shader created in Vulkan (%zu bytes)\n", vs_code.size());
+    std::printf("[test_dxvk_draw_pipeline] Vertex Shader created in Vulkan (%zu bytes)\n", vs_blob->GetBufferSize());
 
     IDirect3DPixelShader9 *ps = nullptr;
-    hr = dev->CreatePixelShader((const DWORD *)ps_code.data(), &ps);
+    hr = dev->CreatePixelShader((const DWORD *)ps_blob->GetBufferPointer(), &ps);
     check(SUCCEEDED(hr) && ps != nullptr, "CreatePixelShader failed in DXVK");
-    std::printf("[test_dxvk_draw_pipeline] Pixel Shader created in Vulkan (%zu bytes)\n", ps_code.size());
+    std::printf("[test_dxvk_draw_pipeline] Pixel Shader created in Vulkan (%zu bytes)\n", ps_blob->GetBufferSize());
 
     // 5. Create Vertex Declaration
     D3DVERTEXELEMENT9 decl_elems[] = {
@@ -148,6 +155,8 @@ int main()
     decl->Release();
     ps->Release();
     vs->Release();
+    vs_blob->Release();
+    ps_blob->Release();
     dev->Release();
     d3d->Release();
     SDL_DestroyWindow(win);

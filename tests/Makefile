@@ -83,8 +83,8 @@ test_gate3_runner: test_gate3_runner.cpp ../loader/src/platform/host_sdl.cpp \
 test_dxvk_device: test_dxvk_device.cpp
 	$(CXX) $(CXXFLAGS) $(DXVK_CFLAGS) $< -o $@ $(LDFLAGS) $(DXVK_LDFLAGS)
 
-test_dxvk_draw_pipeline: test_dxvk_draw_pipeline.cpp
-	$(CXX) $(CXXFLAGS) $(DXVK_CFLAGS) $< -o $@ $(LDFLAGS) $(DXVK_LDFLAGS)
+test_dxvk_draw_pipeline: test_dxvk_draw_pipeline.cpp ../loader/src/platform/d3dcompiler_posix.cpp
+	$(CXX) $(CXXFLAGS) $(DXVK_CFLAGS) $^ -o $@ $(LDFLAGS) $(DXVK_LDFLAGS)
 
 test_d3dcompiler_posix: test_d3dcompiler_posix.cpp ../loader/src/platform/d3dcompiler_posix.cpp
 	$(CXX) $(CXXFLAGS) $(DXVK_CFLAGS) $^ -o $@ $(LDFLAGS) $(DXVK_LDFLAGS)

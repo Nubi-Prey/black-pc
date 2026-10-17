@@ -121,7 +121,10 @@ DWORD conv_colorwrite(uint32_t v)
 static D3DCULL conv_cull(uint32_t cull)
 {
     if (cull == 0) return D3DCULL_NONE;
-    return cull == 0x900 ? D3DCULL_CW : D3DCULL_CCW;
+    bool front_ccw = (render_state()[XRS_FRONTFACE] == 0x901);
+    bool cull_front = (cull == 0x900);
+    bool cull_cw = front_ccw ? !cull_front : cull_front;
+    return cull_cw ? D3DCULL_CW : D3DCULL_CCW;
 }
 
 // ---- defaults (what the original CreateDevice sets up) ----
@@ -229,6 +232,7 @@ void apply_render_states(IDirect3DDevice9 *d)
     on_change(XRS_STENCILFAIL, [&](uint32_t v) { set(D3DRS_STENCILFAIL, conv_stencilop(v)); });
     on_change(XRS_STENCILZFAIL, [&](uint32_t v) { set(D3DRS_STENCILZFAIL, conv_stencilop(v)); });
     on_change(XRS_STENCILPASS, [&](uint32_t v) { set(D3DRS_STENCILPASS, conv_stencilop(v)); });
+    on_change(XRS_FRONTFACE, [&](uint32_t) { set(D3DRS_CULLMODE, conv_cull(render_state()[XRS_CULLMODE])); });
     on_change(XRS_CULLMODE, [&](uint32_t v) { set(D3DRS_CULLMODE, conv_cull(v)); });
     on_change(XRS_FILLMODE, [&](uint32_t v) {
         set(D3DRS_FILLMODE, v == 0x1B00 ? D3DFILL_POINT : v == 0x1B01 ? D3DFILL_WIREFRAME : D3DFILL_SOLID);
