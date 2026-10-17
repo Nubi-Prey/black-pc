@@ -76,6 +76,7 @@ extern "C" void __stdcall blackrt_lib_unimplemented(uint32_t index, const uint32
 
 namespace {
 
+#ifdef _WIN32
 __declspec(naked) void unimplemented_common()
 {
     __asm {
@@ -91,6 +92,23 @@ __declspec(naked) void unimplemented_common()
         int 3
     }
 }
+#else
+__attribute__((naked)) void unimplemented_common()
+{
+    __asm__ volatile (
+        "push %ebp\n\t"
+        "mov %esp, %ebp\n\t"
+        "push %edx\n\t"
+        "push %ecx\n\t"
+        "push %eax\n\t"
+        "lea 8(%ebp), %eax\n\t"
+        "push %eax\n\t"
+        "push 4(%ebp)\n\t"
+        "call blackrt_lib_unimplemented\n\t"
+        "int3\n\t"
+    );
+}
+#endif
 
 int reg_code(const std::string &r)
 {
@@ -168,6 +186,7 @@ void *make_thunk(const xd3d::Hle &h)
     return p;
 }
 
+#ifdef _WIN32
 LONG CALLBACK int3_handler(EXCEPTION_POINTERS *ep)
 {
     if (ep->ExceptionRecord->ExceptionCode != EXCEPTION_BREAKPOINT) return EXCEPTION_CONTINUE_SEARCH;
@@ -180,6 +199,28 @@ LONG CALLBACK int3_handler(EXCEPTION_POINTERS *ep)
     }
     return EXCEPTION_CONTINUE_SEARCH;
 }
+#else
+#include <signal.h>
+#include <ucontext.h>
+
+void linux_sigtrap_handler(int sig, siginfo_t *info, void *ucontext)
+{
+    (void)sig;
+    (void)info;
+    auto *uc = (ucontext_t *)ucontext;
+    uint32_t a = (uint32_t)(uc->uc_mcontext.gregs[REG_EIP] - 1);
+    for (size_t i = 0; i < g_funcs.size(); i++) {
+        if (g_int3_hook[i] && g_funcs[i].addr == a) {
+            blackrt_lib_unimplemented((uint32_t)i,
+                                      (const uint32_t *)(uintptr_t)uc->uc_mcontext.gregs[REG_ESP],
+                                      (uint32_t)uc->uc_mcontext.gregs[REG_EAX],
+                                      (uint32_t)uc->uc_mcontext.gregs[REG_ECX],
+                                      (uint32_t)uc->uc_mcontext.gregs[REG_EDX]);
+        }
+    }
+    std::abort();
+}
+#endif
 
 } // namespace
 
@@ -259,8 +300,17 @@ bool install_d3d_hooks()
             replaced++;
         }
     }
+#ifdef _WIN32
     AddVectoredExceptionHandler(1, int3_handler);
     FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
+#else
+    struct sigaction sa{};
+    sa.sa_sigaction = linux_sigtrap_handler;
+    sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGTRAP, &sa, nullptr);
+    __builtin___clear_cache(nullptr, nullptr);
+#endif
     logf("hooks: D3D+DSOUND: %d functions replaced by HLE, %d run natively, %d stop on first call (%d via int3)", replaced, native,
          stopped, traps);
     return true;

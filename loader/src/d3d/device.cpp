@@ -16,7 +16,9 @@
 #include "xthread.h"
 
 #include <d3dcompiler.h>
+#ifdef _WIN32
 #include <mmsystem.h>
+#endif
 
 #include <algorithm>
 #include <cmath>

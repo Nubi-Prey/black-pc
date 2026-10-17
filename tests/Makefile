@@ -15,7 +15,7 @@ PHASE0_2_TARGETS = test_abi test_kpcr_fs test_memory_layout test_xbe_parser test
 
 PHASE3_TARGETS = test_sdl_window test_sdl_input test_sdl_audio test_gate3_runner
 
-PHASE4_TARGETS = test_dxvk_device test_dxvk_draw_pipeline
+PHASE4_TARGETS = test_dxvk_device test_dxvk_draw_pipeline test_d3dcompiler_posix test_gate4_runner
 
 TARGETS = $(PHASE0_2_TARGETS) $(PHASE3_TARGETS) $(PHASE4_TARGETS)
 
@@ -86,6 +86,14 @@ test_dxvk_device: test_dxvk_device.cpp
 test_dxvk_draw_pipeline: test_dxvk_draw_pipeline.cpp
 	$(CXX) $(CXXFLAGS) $(DXVK_CFLAGS) $< -o $@ $(LDFLAGS) $(DXVK_LDFLAGS)
 
+test_d3dcompiler_posix: test_d3dcompiler_posix.cpp ../loader/src/platform/d3dcompiler_posix.cpp
+	$(CXX) $(CXXFLAGS) $(DXVK_CFLAGS) $^ -o $@ $(LDFLAGS) $(DXVK_LDFLAGS)
+
+test_gate4_runner: test_gate4_runner.cpp ../loader/src/platform/host_d3d9_linux.cpp \
+                   ../loader/src/platform/host_sdl.cpp \
+                   ../loader/src/platform/d3dcompiler_posix.cpp
+	$(CXX) $(CXXFLAGS) $(DXVK_CFLAGS) $^ -o $@ $(LDFLAGS) $(DXVK_LDFLAGS)
+
 run: all
 	@echo "=========================================================="
 	@echo "    EXECUTANDO BATERIA DE TESTES DO PORT LINUX x86        "
@@ -129,6 +137,10 @@ run: all
 	@echo ""
 	DXVK_WSI_DRIVER=SDL2 ./test_dxvk_draw_pipeline
 	@echo ""
+	DXVK_WSI_DRIVER=SDL2 ./test_d3dcompiler_posix
+	@echo ""
+	DXVK_WSI_DRIVER=SDL2 ./test_gate4_runner
+	@echo ""
 	@echo "=========================================================="
 	@echo "       TODOS OS TESTES FORAM CONCLUÍDOS COM SUCESSO!      "
 	@echo "=========================================================="
@@ -136,9 +148,12 @@ run: all
 demo: test_gate3_runner
 	./test_gate3_runner --interactive
 
-run-gui: demo
+demo-gate4: test_gate4_runner
+	DXVK_WSI_DRIVER=SDL2 ./test_gate4_runner --interactive
+
+run-gui: demo-gate4
 
 clean:
 	rm -f $(TARGETS)
 
-.PHONY: all run run-gui demo clean
+.PHONY: all run run-gui demo demo-gate4 clean

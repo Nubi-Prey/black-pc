@@ -13,7 +13,11 @@
 #include "fov.h"
 #include "perf.h"
 
+#ifdef _WIN32
 #include <wincodec.h>
+#else
+#include <SDL2/SDL.h>
+#endif
 
 #include <cstring>
 #include <unordered_map>
@@ -1139,6 +1143,7 @@ bool save_surface_png(IDirect3DSurface9 *src, const wchar_t *path, bool alpha_as
                 }
             }
             sys->UnlockRect();
+#ifdef _WIN32
             CoInitializeEx(nullptr, COINIT_MULTITHREADED);
             IWICImagingFactory *f = nullptr;
             IWICStream *st = nullptr;
@@ -1158,6 +1163,20 @@ bool save_surface_png(IDirect3DSurface9 *src, const wchar_t *path, bool alpha_as
             if (enc) enc->Release();
             if (st) st->Release();
             if (f) f->Release();
+#else
+            std::wstring wpath(path);
+            std::string spath(wpath.begin(), wpath.end());
+            SDL_Surface *surf = SDL_CreateRGBSurfaceFrom(px.data(), desc.Width, desc.Height, 32, desc.Width * 4,
+                                                         0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+            if (surf) {
+                std::string bmp_path = spath;
+                if (bmp_path.size() > 4 && bmp_path.substr(bmp_path.size() - 4) == ".png") {
+                    bmp_path.replace(bmp_path.size() - 4, 4, ".bmp");
+                }
+                ok = (SDL_SaveBMP(surf, bmp_path.c_str()) == 0);
+                SDL_FreeSurface(surf);
+            }
+#endif
         }
     }
     if (sys) sys->Release();

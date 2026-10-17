@@ -38,7 +38,7 @@ bool open_window(int width, int height, int aspect_w, int aspect_h, bool hidden)
     if (aspect_w > 0) g_aspect_w = aspect_w;
     if (aspect_h > 0) g_aspect_h = aspect_h;
 
-    uint32_t flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
+    uint32_t flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_VULKAN;
     if (hidden) {
         flags |= SDL_WINDOW_HIDDEN;
     } else {

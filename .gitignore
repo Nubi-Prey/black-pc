@@ -54,8 +54,12 @@ tests/test_sdl_audio
 tests/test_gate3_runner
 tests/test_dxvk_device
 tests/test_dxvk_draw_pipeline
+tests/test_d3dcompiler_posix
+tests/test_gate4_runner
 *dxvk*.log
+*_d3d9.log
 *.dxvk.bin
+cache/
 
 # Local launcher shortcut (machine-specific; its icon comes from the user's XBE)
 *.lnk
