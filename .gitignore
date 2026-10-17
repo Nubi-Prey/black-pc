@@ -1,5 +1,6 @@
 # Never commit the game, its assets, or Microsoft XDK code. Users supply their own dump.
 game/
+games
 *.xbe
 *.iso
 *.xiso
