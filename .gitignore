@@ -31,6 +31,15 @@ hdd/
 *.raw
 black.log
 
+# Test binaries
+tests/test_abi
+tests/test_kpcr_fs
+tests/test_memory_layout
+tests/test_xbe_parser
+tests/test_xbe_loader_map
+tests/test_thunk_dispatcher
+tests/test_boot_entry
+
 # Local launcher shortcut (machine-specific; its icon comes from the user's XBE)
 *.lnk
 

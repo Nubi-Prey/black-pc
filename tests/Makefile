@@ -1,10 +1,10 @@
 # Makefile para a Suite de Testes e Validação do Port Nativo Linux x86 (BLACK PC)
 
 CXX ?= g++
-CXXFLAGS = -m32 -std=c++20 -O2 -Wall -Wextra -I..
-LDFLAGS = -m32 -lpthread
+CXXFLAGS = -m32 -std=c++20 -O2 -Wall -Wextra -fno-pie -I..
+LDFLAGS = -m32 -no-pie -lpthread
 
-TARGETS = test_abi test_kpcr_fs test_memory_layout
+TARGETS = test_abi test_kpcr_fs test_memory_layout test_xbe_parser test_xbe_loader_map test_thunk_dispatcher test_boot_entry
 
 all: $(TARGETS)
 
@@ -17,6 +17,18 @@ test_kpcr_fs: test_kpcr_fs.cpp
 test_memory_layout: test_memory_layout.cpp
 	$(CXX) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
 
+test_xbe_parser: test_xbe_parser.cpp ../loader/src/platform/xbe_loader.cpp
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+
+test_xbe_loader_map: test_xbe_loader_map.cpp ../loader/src/platform/xbe_loader.cpp
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+
+test_thunk_dispatcher: test_thunk_dispatcher.cpp
+	$(CXX) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
+
+test_boot_entry: test_boot_entry.cpp ../loader/src/platform/xbe_loader.cpp
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+
 run: all
 	@echo "=========================================================="
 	@echo "    EXECUTANDO BATERIA DE TESTES DO PORT LINUX x86        "
@@ -27,6 +39,14 @@ run: all
 	./test_kpcr_fs
 	@echo ""
 	./test_memory_layout
+	@echo ""
+	./test_xbe_parser ../game/default.xbe
+	@echo ""
+	./test_xbe_loader_map ../game/default.xbe
+	@echo ""
+	./test_thunk_dispatcher
+	@echo ""
+	./test_boot_entry ../game/default.xbe
 	@echo ""
 	@echo "=========================================================="
 	@echo "       TODOS OS TESTES FORAM CONCLUÍDOS COM SUCESSO!      "
