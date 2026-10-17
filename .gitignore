@@ -12,6 +12,7 @@ tools/XbSymbolDatabase/
 tools/ghidra-xbe/
 tools/bin/
 tools/sdl2/
+tools/dxvk-native/
 *.deb
 
 # Ghidra projects hold the analysed game binary
@@ -51,6 +52,10 @@ tests/test_sdl_window
 tests/test_sdl_input
 tests/test_sdl_audio
 tests/test_gate3_runner
+tests/test_dxvk_device
+tests/test_dxvk_draw_pipeline
+*dxvk*.log
+*.dxvk.bin
 
 # Local launcher shortcut (machine-specific; its icon comes from the user's XBE)
 *.lnk

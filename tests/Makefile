@@ -7,12 +7,17 @@ LDFLAGS = -m32 -no-pie -lpthread
 SDL_CFLAGS = -I../tools/sdl2/include -I../tools/sdl2/include/i386-linux-gnu
 SDL_LDFLAGS = -L../tools/sdl2/lib -Wl,-rpath,'$$ORIGIN/../tools/sdl2/lib' -lSDL2
 
+DXVK_CFLAGS = -I../tools/dxvk-native/usr/include/dxvk -I../tools/dxvk-native/usr/include/dxvk/wsi -I../tools/sdl2/include -I../tools/sdl2/include/SDL2 -I../tools/sdl2/include/i386-linux-gnu
+DXVK_LDFLAGS = -L../tools/dxvk-native/usr/lib32 -Wl,-rpath,'$$ORIGIN/../tools/dxvk-native/usr/lib32' -ldxvk_d3d9 -L../tools/sdl2/lib -Wl,-rpath,'$$ORIGIN/../tools/sdl2/lib' -lSDL2
+
 PHASE0_2_TARGETS = test_abi test_kpcr_fs test_memory_layout test_xbe_parser test_xbe_loader_map test_thunk_dispatcher test_boot_entry \
                    test_k_sync_posix test_k_file_posix test_k_thread_posix test_k_memory_posix test_gate2_runner
 
 PHASE3_TARGETS = test_sdl_window test_sdl_input test_sdl_audio test_gate3_runner
 
-TARGETS = $(PHASE0_2_TARGETS) $(PHASE3_TARGETS)
+PHASE4_TARGETS = test_dxvk_device test_dxvk_draw_pipeline
+
+TARGETS = $(PHASE0_2_TARGETS) $(PHASE3_TARGETS) $(PHASE4_TARGETS)
 
 all: $(TARGETS)
 
@@ -74,6 +79,13 @@ test_gate3_runner: test_gate3_runner.cpp ../loader/src/platform/host_sdl.cpp \
                    ../loader/src/platform/audio_sdl.cpp
 	$(CXX) $(CXXFLAGS) $(SDL_CFLAGS) $^ -o $@ $(LDFLAGS) $(SDL_LDFLAGS)
 
+# Phase 4: Subsistema Gráfico e Tradução de Shaders com DXVK-Native
+test_dxvk_device: test_dxvk_device.cpp
+	$(CXX) $(CXXFLAGS) $(DXVK_CFLAGS) $< -o $@ $(LDFLAGS) $(DXVK_LDFLAGS)
+
+test_dxvk_draw_pipeline: test_dxvk_draw_pipeline.cpp
+	$(CXX) $(CXXFLAGS) $(DXVK_CFLAGS) $< -o $@ $(LDFLAGS) $(DXVK_LDFLAGS)
+
 run: all
 	@echo "=========================================================="
 	@echo "    EXECUTANDO BATERIA DE TESTES DO PORT LINUX x86        "
@@ -111,6 +123,11 @@ run: all
 	./test_sdl_audio
 	@echo ""
 	./test_gate3_runner
+	@echo ""
+	@echo "---------------- [ FASE 4: DXVK-NATIVE VULKAN GRAPHICS ] ----------------"
+	DXVK_WSI_DRIVER=SDL2 ./test_dxvk_device
+	@echo ""
+	DXVK_WSI_DRIVER=SDL2 ./test_dxvk_draw_pipeline
 	@echo ""
 	@echo "=========================================================="
 	@echo "       TODOS OS TESTES FORAM CONCLUÍDOS COM SUCESSO!      "
