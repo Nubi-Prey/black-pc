@@ -262,6 +262,134 @@ Garantir o funcionamento de todos os recursos de jogabilidade, menus in-game, es
 
 ---
 
+---
+
+## 6. Framework de Testes, Depuração e Validação Contínua (Harness & Debugging)
+
+O port para Linux x86 deve herdar e expandir o poderoso arcabouço de testes embutido no projeto original (`main.cpp`, `hooks.cpp`, `perf.cpp`), garantindo que o desenvolvimento seja conduzido com **testes automatizados reprodutíveis** em vez de testes manuais subjetivos.
+
+### 6.1 Ferramentas e Instrumentação no Linux x86
+
+| Ferramenta | Aplicação no Port Linux x86 | Como Usar |
+| :--- | :--- | :--- |
+| **GDB (32-bit multilib)** | Depuração com breakpoints em hardware (`DR0-DR3`), inspeção de registradores `%fs`, `%gs`, SSE/x87 e callstack. | `gdb ./black_linux`<br>`(gdb) watch *0x0027C000`<br>`(gdb) info registers fs gs` |
+| **RenderDoc (Linux)** | Inspeção frame a frame de draw calls Vulkan/OpenGL, buffers de vértices gerados, depth buffers e shaders SPIR-V/GLSL. | Lançar `black_linux` pelo RenderDoc UI para capturar e comparar draw calls contra a versão de referência. |
+| **Valgrind (Memcheck 32-bit)** | Detecção de corrupção de memória, leitura de memória não inicializada e leaks no heap. | `valgrind --tool=memcheck --leak-check=full ./black_linux --timeout 10` |
+| **Vulkan Validation Layers** | Diagnóstico de violações de formato de textura, transições de layout incorretas e sincronização no DXVK-Native. | `VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation ./black_linux` |
+| **strace (32-bit)** | Rastreamento de chamadas de sistema no kernel (`open`, `mmap`, `futex`, `clone`). | `strace -f -e trace=file,desc,mmap ./black_linux` |
+
+---
+
+### 6.2 O Test Harness Embutido do Loader (Flags de Teste)
+
+O binário `black_linux` implementará as mesmas flags de diagnóstico e testes do loader original:
+
+- **Execução Automatizada / Headless (`--background`):**
+  - Inicializa o jogo minimizado e sem foco na janela, com o áudio mutado. Permite executar baterias de testes em lote e rotinas de CI local sem bloquear a interface gráfica do usuário.
+- **Entrada Scriptada Reprodutível (`--press`):**
+  - Simula toques no controle em frames ou segundos exatos.
+  - Exemplo: `--skip-videos --press "20s:start,50s:a,56s:a,62s:a"` chega diretamente na primeira missão sem nenhuma intervenção do usuário.
+- **Hardware Watchpoints e Probes (`--watch`, `--probe`):**
+  - `--watch <hexaddr>`: intercepta e loga qualquer instrução do jogo que escreva em determinado endereço de memória do Xbox (usando registradores de depuração `DR0-DR3`).
+  - `--probe <hexaddr>`: imprime o estado de todos os registradores (`EAX`, `ECX`, `EDX`, `XMM0`, etc.) e argumentos na pilha cada vez que a execução atinge aquele endereço.
+- **Inspeção de Desenho (`--debug-draws <N>`, `--debug-frame <N>`):**
+  - Descreve todas as chamadas de desenho do frame N e salva **cada render target e depth view individual como imagem PNG** para análise.
+- **Captura Automatizada de Screenshots (`--screenshot <dir> --shot-every N --shot-start S`):**
+  - Salva frames periódicos em disco no formato PNG para comparação visual automatizada.
+- **Gravação de Áudio para Validação (`--wav <file>`):**
+  - Exporta todo o stream de saída do mixer de som para um arquivo WAV PCM de 16-bit 48 kHz.
+- **Modo Estrito (`--strict`):**
+  - Interrompe o processo imediatamente com stack trace completo caso o jogo chame qualquer função de kernel ou biblioteca que não tenha implementação HLE completa.
+- **Timeout Automático (`--timeout <segundos>`):**
+  - Encerra o processo após N segundos, gerando um dump de todas as threads ativas (`dump_threads`).
+
+---
+
+### 6.3 Matriz de Testes e Afirmação por Fase do Roadmap
+
+Cada fase do desenvolvimento possui testes unitários, testes de integração e verificações específicas:
+
+#### Fase 0: Toolchain e Abstração de Tipos
+- **Teste Unitário de Layout de Memória (`tests/test_structs.cpp`):**
+  - Validar tamanhos com `static_assert(sizeof(...) == esperado)` e alinhamento de campos com `offsetof()`.
+- **Teste de Convenções de Chamada e Thunks (`tests/test_thunks.cpp`):**
+  - Testar a geração de thunks dinâmicos em memória executável (`mprotect(PROT_EXEC)`), chamando funções simuladas em `__attribute__((stdcall))` e `__attribute__((cdecl))` com preservação de registradores `ecx`/`edx`/`eax`.
+- **Comando de Teste:**
+  ```bash
+  cmake --preset linux-i686-debug && cmake --build build/linux-i686 --target test_abi
+  ./build/linux-i686/test_abi
+  ```
+
+#### Fase 1: Carregador ELF, Memória e KPCR
+- **Teste de Mapeamento Fixo (`0x10000` e `0x80000000`):**
+  - Validar se o processo consegue alocar ambas as regiões com sucesso sem colidir com bibliotecas do sistema ou heap.
+  - Verificar `/proc/self/maps` para confirmar que `0x00010000-0x00800000` e `0x80000000-0x84000000` estão com permissões `rwx`.
+- **Teste de Troca de Contexto com `%fs`:**
+  - Criar 10 threads concorrentes usando `pthread_create`.
+  - Configurar um KPCR exclusivo com `set_thread_area` para cada thread.
+  - Fazer cada thread realizar 1 milhão de leituras e escritas em `fs:[0x24]` (IRQL) e `fs:[0x28]` (CurrentThread) para garantir que o kernel do Linux preserva `%fs` durante context switches preemptivos.
+- **Comando de Teste:**
+  ```bash
+  ./build/linux-i686/black_linux --info game/default.xbe
+  ```
+
+#### Fase 2: Kernel HLE POSIX e File I/O
+- **Teste de Resolução Case-Insensitive do VFS:**
+  - Testar busca de arquivos com caminhos misturados (`D:\Videos\LO_n_US.xmv`, `d:/VIDEOS/lo_n_us.xmv`, `T:\$u\contentmeta.xbx`).
+- **Teste de Inicialização com `--strict` e Diffing de Log:**
+  - Rodar o loader até a primeira chamada D3D:
+    ```bash
+    ./build/linux-i686/black_linux --trace --strict --timeout 10 > linux_boot.log
+    ```
+  - Comparar `linux_boot.log` com o log de referência do Windows (`work/black.log`) usando `diff -u` ou `meld`:
+    - Confirmar que a ordem das chamadas (`HalRegisterShutdownNotification`, `KeInitializeDpc`, `ExQueryNonVolatileSetting`, `MmAllocateContiguousMemoryEx`) é rigorosamente idêntica.
+
+#### Fase 3: Janela, Entrada e Áudio com SDL2
+- **Teste de Saída de Áudio (`--wav`):**
+  - Executar:
+    ```bash
+    ./build/linux-i686/black_linux --skip-videos --wav test_audio.wav --timeout 15
+    ```
+  - Verificar com `ffprobe test_audio.wav` que o arquivo contém áudio estéreo a 48 kHz.
+  - Analisar a forma de onda para validar ausência de silêncio, cortes ou picos de distorção.
+- **Teste de Entrada Scriptada (`--press`):**
+  - Testar avanço automatizado nas telas com `--press "5s:start,10s:a"` e verificar no log a confirmação de leitura do input.
+
+#### Fase 4: Subsistema Gráfico e Tradução de Shaders
+- **Validação de Compilação de Shaders:**
+  - Testar os 28 shaders de vértice e os combinadores de pixel com `vkd3d-shader`:
+    - Garantir que `nv2a_vsh.cpp` e `nv2a_psh.cpp` geram shaders válidos sem erros de compilação ou registradores indefinidos.
+- **Image Regression Testing (Comparação de Screenshots):**
+  - Executar a mesma sequência de boot no Linux gerando screenshots:
+    ```bash
+    ./build/linux-i686/black_linux --skip-videos --screenshot shots_linux/ --shot-every 60 --timeout 25
+    ```
+  - Comparar os PNGs gerados com os PNGs de referência do Windows usando o utilitário `compare` do ImageMagick:
+    ```bash
+    compare -metric RMSE shots_linux/frame_000060.png shots_windows/frame_000060.png diff_0060.png
+    ```
+  - Um valor de erro inferior a 1% confirma conformidade visual das cores, iluminação e transformações de matriz de projeção.
+- **Inspeção de Buffers com `--debug-frame`:**
+  - Inspecionar a geração das texturas de render target (160x120 para efeito de bloom, 80x60 para blur e depth views) para garantir que a emulação de leitura do Z-buffer como cor não gera tela preta ou artefatos.
+
+#### Fase 5: Campanha Completa e Estabilidade
+- **Soak Test (Teste de Longa Duração Automatizado):**
+  - Executar a primeira missão com script de movimentação e disparos contínuos por 15 minutos:
+    ```bash
+    ./build/linux-i686/black_linux --skip-videos --press "20s:start,50s:a,56s:a,62s:a,75s:k:W*10000,85s:k:LMB*2000" --timeout 900
+    ```
+  - Monitorar consumo de memória (RSS) para assegurar que não há memory leaks em texturas ou buffers de vértice.
+- **Teste de Save/Load:**
+  - Salvar um checkpoint, encerrar o processo e reiniciar para confirmar que o arquivo `savedata/Partition1/UDATA/45410083/` é lido e o menu "CONTINUE MISSION" restaura o estado do jogador.
+- **Análise de Performance (`--perf-at`):**
+  - Medir frametime, tempo de CPU do jogo e tempo de GPU:
+    ```bash
+    ./build/linux-i686/black_linux --perf-at 10:30
+    ```
+  - Confirmar 60 fps estáveis (< 16.7 ms por frame) com zero frames atrasados (*0 late frames*).
+
+---
+
 ## Matriz de Riscos e Mitigações
 
 | Risco Identificado | Impacto | Probabilidade | Mitigação Técnica |
@@ -279,3 +407,4 @@ Para iniciar a execução deste roadmap:
 1. Configurar o target no CMake para compilar a biblioteca base com `gcc -m32`.
 2. Criar a estrutura inicial de `loader/src/platform/linux/`.
 3. Validar a inicialização do executável `black_linux` executando a Fase 0 e Fase 1.
+
