@@ -26,6 +26,7 @@ Setup for this machine: `PC_SETUP.md` (CMake is bundled with VS 18 Build Tools, 
 - The user supplies the dump; the loader reads `default.xbe` and assets from a path at runtime. Nothing game-derived is embedded in the loader.
 - Cxbx-Reloaded and xemu are GPL: read them as reference; do not paste their code into this project without the user deciding the license first.
 - Everything under `tools/` third-party clones and `tools/bin/` is local only (also git-ignored). macOS binaries in `tools/bin/` do not run on Windows.
+- **Test Integrity & Zero False Positives (Foundational for LLM Agents):** Tests are the foundation of autonomous development. Never accept hardcoded expected outputs, dummy assertions, or fallthroughs. Always validate dynamic runtime parameters (such as `D3DPRESENT_PARAMETERS`, caller return addresses in `.text`, host `stat()` file sizes, and active `KTHREAD` pointers). Stubs for fatal system errors or shutdowns (e.g. `HalReturnToFirmware`, `HalInitiateShutdown`) MUST terminate execution immediately (`_exit(99)`) to prevent tests from claiming milestone completion on unintended error paths. Concurrency primitives must be tested under real multi-threaded race contention.
 
 ## Known facts that shape the design (details and addresses in NOTES.md)
 
