@@ -14,13 +14,14 @@ SDL_Window *g_window = nullptr;
 int g_aspect_w = 16;
 int g_aspect_h = 9;
 bool g_fullscreen = false;
-bool g_captured = false;
+std::atomic<bool> g_captured{false};
 std::atomic<bool> g_window_closed{false};
+std::atomic<int> g_pending_capture{-1};
 
-int g_mouse_dx = 0;
-int g_mouse_dy = 0;
-int g_mouse_wheel = 0;
-int g_mouse_buttons = 0;
+std::atomic<int> g_mouse_dx{0};
+std::atomic<int> g_mouse_dy{0};
+std::atomic<int> g_mouse_wheel{0};
+std::atomic<int> g_mouse_buttons{0};
 
 } // namespace
 
@@ -142,30 +143,43 @@ bool is_fullscreen()
 
 bool mouse_captured()
 {
-    return g_captured;
+    return g_captured.load();
 }
 
 void request_capture(bool on)
 {
-    g_captured = on;
-    SDL_SetRelativeMouseMode(on ? SDL_TRUE : SDL_FALSE);
+    g_captured.store(on);
+    g_pending_capture.store(on ? 1 : 0);
+    if (SDL_WasInit(SDL_INIT_VIDEO)) {
+        SDL_SetRelativeMouseMode(on ? SDL_TRUE : SDL_FALSE);
+    }
 }
 
 void mouse_take(int *dx, int *dy, int *wheel)
 {
-    if (dx) { *dx = g_mouse_dx; g_mouse_dx = 0; }
-    if (dy) { *dy = g_mouse_dy; g_mouse_dy = 0; }
-    if (wheel) { *wheel = g_mouse_wheel; g_mouse_wheel = 0; }
+    if (dx) *dx = g_mouse_dx.exchange(0);
+    if (dy) *dy = g_mouse_dy.exchange(0);
+    if (wheel) *wheel = g_mouse_wheel.exchange(0);
 }
 
 int mouse_buttons()
 {
-    return g_mouse_buttons;
+    return g_captured.load() ? g_mouse_buttons.load() : 0;
 }
 
 void pump_events()
 {
     if (!g_window) return;
+
+    int pending = g_pending_capture.exchange(-1);
+    if (pending != -1) {
+        SDL_SetRelativeMouseMode(pending == 1 ? SDL_TRUE : SDL_FALSE);
+        if (pending == 1) {
+            g_mouse_dx.store(0);
+            g_mouse_dy.store(0);
+            g_mouse_wheel.store(0);
+        }
+    }
 
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
@@ -178,19 +192,21 @@ void pump_events()
                 if (ev.window.event == SDL_WINDOWEVENT_CLOSE) {
                     g_window_closed = true;
                 } else if (ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
-                    if (g_captured) {
+                    if (g_captured.load()) {
                         request_capture(false);
                     }
                 }
                 break;
 
             case SDL_MOUSEMOTION:
-                g_mouse_dx += ev.motion.xrel;
-                g_mouse_dy += ev.motion.yrel;
+                if (g_captured.load()) {
+                    g_mouse_dx.fetch_add(ev.motion.xrel);
+                    g_mouse_dy.fetch_add(ev.motion.yrel);
+                }
                 break;
 
             case SDL_MOUSEWHEEL:
-                g_mouse_wheel += ev.wheel.y;
+                g_mouse_wheel.fetch_add(ev.wheel.y);
                 break;
 
             case SDL_MOUSEBUTTONDOWN:
@@ -204,12 +220,16 @@ void pump_events()
                 if (ev.button.button == SDL_BUTTON_X2)     bit = 1 << 4;
 
                 if (down) {
-                    g_mouse_buttons |= bit;
-                    if (!g_captured) {
+                    if (!g_captured.load()) {
                         request_capture(true);
+                        g_mouse_dx.store(0);
+                        g_mouse_dy.store(0);
+                        g_mouse_wheel.store(0);
+                    } else {
+                        g_mouse_buttons.fetch_or(bit);
                     }
                 } else {
-                    g_mouse_buttons &= ~bit;
+                    g_mouse_buttons.fetch_and(~bit);
                 }
                 break;
             }

@@ -448,7 +448,6 @@ int main(int argc, char **argv)
     uint32_t start_ticks = SDL_GetTicks();
     while (g_running && !host_sdl::window_closed()) {
         host_sdl::pump_events();
-        input_sdl::poll();
 
         if (g_cfg.timeout_s > 0) {
             uint32_t elapsed_s = (SDL_GetTicks() - start_ticks) / 1000;

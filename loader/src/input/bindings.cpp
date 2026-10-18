@@ -339,7 +339,7 @@ void apply(uint16_t &buttons, uint8_t analog[8], int16_t &lx, int16_t &ly, int16
                 if (raw_held(g_keys[i][s], focus, mouse)) g_stale[g_keys[i][s]] = true;
         for (uint16_t k : {VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT, VK_RETURN, VK_BACK, VK_ESCAPE})
             if (raw_held(k, focus, 0)) g_stale[k] = true;
-        if (play && g_freed_by_esc && focus) host3d::request_capture(true);
+        if (play && focus) host3d::request_capture(true);
         if (play) g_freed_by_esc = false;
         g_was_play = play;
     }

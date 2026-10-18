@@ -42,6 +42,9 @@ void poll();
 // Returns true if device is connected or emulated, false if disconnected.
 bool get_state(uint32_t user_index, XboxInputState *out_state);
 
+// Returns true if a physical gamepad or synthetic test override is present on slot
+bool has_controller(uint32_t user_index);
+
 // Set vibration / rumble for game controller
 void set_rumble(uint32_t user_index, uint16_t left_motor, uint16_t right_motor);
 

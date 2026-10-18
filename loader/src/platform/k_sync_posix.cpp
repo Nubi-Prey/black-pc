@@ -190,38 +190,31 @@ void RtlEnterCriticalSection(XRTL_CRITICAL_SECTION *cs)
         me = (void *)(uintptr_t)pthread_self();
     }
 
-    if (__atomic_add_fetch(&cs->LockCount, 1, __ATOMIC_SEQ_CST) == 0) {
-        cs->OwningThread = me;
-        cs->RecursionCount = 1;
-        return;
-    }
-
+    std::unique_lock<std::mutex> lock(g_cs_mutex);
     if (cs->OwningThread == me) {
         cs->RecursionCount++;
+        cs->LockCount++;
         return;
     }
 
-    std::unique_lock<std::mutex> lock(g_cs_mutex);
     while (cs->OwningThread != nullptr) {
         g_cs_cv.wait(lock);
     }
     cs->OwningThread = me;
     cs->RecursionCount = 1;
+    cs->LockCount = 0;
 }
 
 void RtlLeaveCriticalSection(XRTL_CRITICAL_SECTION *cs)
 {
     if (!cs) return;
-    if (--cs->RecursionCount != 0) {
-        __atomic_sub_fetch(&cs->LockCount, 1, __ATOMIC_SEQ_CST);
-        return;
-    }
-    {
-        std::lock_guard<std::mutex> lock(g_cs_mutex);
+    std::unique_lock<std::mutex> lock(g_cs_mutex);
+    if (--cs->RecursionCount == 0) {
         cs->OwningThread = nullptr;
-    }
-    if (__atomic_sub_fetch(&cs->LockCount, 1, __ATOMIC_SEQ_CST) >= 0) {
+        cs->LockCount = -1;
         g_cs_cv.notify_one();
+    } else {
+        cs->LockCount--;
     }
 }
 

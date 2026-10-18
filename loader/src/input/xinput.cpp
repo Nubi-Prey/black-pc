@@ -331,7 +331,7 @@ void read_pad(uint32_t port, XGamepad &g)
 #else
     input_sdl::poll();
     XboxInputState sdl_state{};
-    if (input_sdl::get_state(0, &sdl_state)) {
+    if (input_sdl::has_controller(0) && input_sdl::get_state(0, &sdl_state)) {
         g.wButtons = sdl_state.Gamepad.wButtons;
         memcpy(g.bAnalogButtons, sdl_state.Gamepad.bAnalogButtons, sizeof(g.bAnalogButtons));
         g.sThumbLX = sdl_state.Gamepad.sThumbLX;

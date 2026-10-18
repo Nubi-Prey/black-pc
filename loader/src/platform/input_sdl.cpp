@@ -24,7 +24,6 @@ ControllerSlot g_slots[4];
 bool g_initialized = false;
 float g_mouselook_yaw = 0.0f;
 float g_mouselook_pitch = 0.0f;
-float g_mouse_sensitivity = 0.15f;
 
 int16_t apply_deadzone(int16_t val, int16_t deadzone)
 {
@@ -198,17 +197,6 @@ void poll()
                 if (keys[SDL_SCANCODE_ESCAPE])   new_gamepad.wButtons |= XINPUT_BACK;
                 if (keys[SDL_SCANCODE_LSHIFT])   new_gamepad.wButtons |= XINPUT_LEFT_THUMB;
             }
-
-            // Mouse
-            int m_buttons = host_sdl::mouse_buttons();
-            if (m_buttons & (1 << 0)) new_gamepad.bAnalogButtons[7] = 255; // Botão Esquerdo -> Gatilho Direito (Disparo)
-            if (m_buttons & (1 << 1)) new_gamepad.bAnalogButtons[6] = 255; // Botão Direito -> Gatilho Esquerdo (Mira)
-            if (m_buttons & (1 << 2)) new_gamepad.wButtons |= XINPUT_RIGHT_THUMB; // Clique Meio -> Melee
-
-            int m_dx = 0, m_dy = 0, m_wheel = 0;
-            host_sdl::mouse_take(&m_dx, &m_dy, &m_wheel);
-            g_mouselook_yaw   += (float)m_dx * g_mouse_sensitivity;
-            g_mouselook_pitch += (float)m_dy * g_mouse_sensitivity;
         }
 
         // Se o estado mudou, incrementa o packet number
@@ -229,6 +217,12 @@ bool get_state(uint32_t user_index, XboxInputState *out_state)
         *out_state = g_slots[user_index].state;
     }
     return true;
+}
+
+bool has_controller(uint32_t user_index)
+{
+    if (user_index >= 4) return false;
+    return g_slots[user_index].controller != nullptr || g_slots[user_index].synthetic_override;
 }
 
 void set_rumble(uint32_t user_index, uint16_t left_motor, uint16_t right_motor)

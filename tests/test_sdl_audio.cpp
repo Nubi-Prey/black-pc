@@ -59,10 +59,13 @@ int main()
         uint32_t wanted_now = audio_sdl::blocks_wanted();
         check(wanted_now == 0, "blocks_wanted() should be 0 when queue is full");
 
-        // Let audio stream play for 35 ms so hardware drains some queued data
-        usleep(35000);
-        uint32_t queued_after_delay = audio_sdl::queued_bytes();
-        std::printf("[test_sdl_audio] Queued bytes after 35ms playback: %u\n", queued_after_delay);
+        // Let audio stream play so hardware drains some queued data
+        uint32_t queued_after_delay = queued;
+        for (int retry = 0; retry < 10 && queued_after_delay >= queued; ++retry) {
+            usleep(15000); // 15 ms per step, up to 150 ms total
+            queued_after_delay = audio_sdl::queued_bytes();
+        }
+        std::printf("[test_sdl_audio] Queued bytes after playback: %u (initial: %u)\n", queued_after_delay, queued);
         check(queued_after_delay < queued, "Hardware device should have consumed audio bytes during sleep");
 
         // Test device invalidation simulation

@@ -13,7 +13,7 @@ DXVK_LDFLAGS = -L../tools/dxvk-native/usr/lib32 -Wl,-rpath,'$$ORIGIN/../tools/dx
 PHASE0_2_TARGETS = test_abi test_kpcr_fs test_memory_layout test_xbe_parser test_xbe_loader_map test_thunk_dispatcher test_boot_entry \
                    test_k_sync_posix test_k_file_posix test_k_thread_posix test_k_memory_posix test_gate2_runner
 
-PHASE3_TARGETS = test_sdl_window test_sdl_input test_sdl_audio test_gate3_runner
+PHASE3_TARGETS = test_sdl_window test_sdl_input test_sdl_audio test_mouselook_pipeline test_gate3_runner
 
 PHASE4_TARGETS = test_dxvk_device test_dxvk_draw_pipeline test_d3dcompiler_posix test_gate4_runner
 
@@ -76,6 +76,12 @@ test_sdl_input: test_sdl_input.cpp ../loader/src/platform/input_sdl.cpp ../loade
 test_sdl_audio: test_sdl_audio.cpp ../loader/src/platform/audio_sdl.cpp
 	$(CXX) $(CXXFLAGS) $(SDL_CFLAGS) $^ -o $@ $(LDFLAGS) $(SDL_LDFLAGS)
 
+test_mouselook_pipeline: test_mouselook_pipeline.cpp ../loader/src/platform/host_sdl.cpp \
+                         ../loader/src/platform/input_sdl.cpp \
+                         ../loader/src/input/mouselook.cpp \
+                         ../loader/src/log.cpp
+	$(CXX) $(CXXFLAGS) $(SDL_CFLAGS) $^ -o $@ $(LDFLAGS) $(SDL_LDFLAGS)
+
 test_gate3_runner: test_gate3_runner.cpp ../loader/src/platform/host_sdl.cpp \
                    ../loader/src/platform/input_sdl.cpp \
                    ../loader/src/platform/audio_sdl.cpp
@@ -136,6 +142,8 @@ run: all
 	./test_sdl_input
 	@echo ""
 	./test_sdl_audio
+	@echo ""
+	./test_mouselook_pipeline
 	@echo ""
 	./test_gate3_runner
 	@echo ""
