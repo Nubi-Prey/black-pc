@@ -59,11 +59,15 @@ bool window_closed()
 
 void frame_layout(RECT *frame, RECT *picture)
 {
-    int fw = 0, fh = 0, pw = 0, ph = 0;
-    host_sdl::frame_layout(&fw, &fh, &pw, &ph);
+    int win_w = 0, win_h = 0;
+    if (host_sdl::window()) {
+        SDL_GetWindowSize(host_sdl::window(), &win_w, &win_h);
+    }
+    if (win_w <= 0) win_w = 1280;
+    if (win_h <= 0) win_h = 720;
 
-    fw = std::min(fw, g_bb_w);
-    fh = std::min(fh, g_bb_h);
+    int fw = std::clamp(win_w, 320, g_bb_w);
+    int fh = std::clamp(win_h, 180, g_bb_h);
 
     g_frame_w = fw;
     g_frame_h = fh;
@@ -76,6 +80,13 @@ void frame_layout(RECT *frame, RECT *picture)
     }
 
     if (picture) {
+        int pw = fw;
+        int ph = fw * 9 / 16;
+        if (ph > fh) {
+            ph = fh;
+            pw = fh * 16 / 9;
+        }
+
         int x = (fw - pw) / 2;
         int y = (fh - ph) / 2;
         picture->left = x;
@@ -220,7 +231,11 @@ HRESULT present()
     g_in_scene = false;
 
     RECT src{0, 0, g_frame_w ? g_frame_w : g_bb_w, g_frame_h ? g_frame_h : g_bb_h};
-    return g_dev->Present(&src, nullptr, nullptr, nullptr);
+    HRESULT hr = g_dev->Present(&src, nullptr, nullptr, nullptr);
+    if (FAILED(hr)) {
+        hr = g_dev->Present(nullptr, nullptr, nullptr, nullptr);
+    }
+    return hr;
 }
 
 bool reset_device()

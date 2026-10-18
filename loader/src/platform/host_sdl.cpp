@@ -53,6 +53,8 @@ bool open_window(int width, int height, int aspect_w, int aspect_h, bool hidden)
         return false;
     }
 
+    SDL_SetWindowMinimumSize(g_window, 640, 360);
+
     g_window_closed = false;
     if (g_fullscreen) {
         SDL_SetWindowFullscreen(g_window, SDL_WINDOW_FULLSCREEN_DESKTOP);
