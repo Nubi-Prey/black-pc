@@ -60,6 +60,7 @@ SRCS = \
     loader/src/fov.cpp \
     loader/src/hooks.cpp \
     loader/src/settings.cpp \
+    loader/src/language.cpp \
     loader/src/sha1.cpp \
     loader/src/log.cpp
 

@@ -10,6 +10,7 @@ namespace xposix {
 
 void file_init(const std::string &game_dir = "./game", const std::string &savedata_dir = "./savedata");
 void set_cache_override(const std::string &cache_dir);
+void set_language_override(const std::string &lang_dir);
 
 // Symbolic Links
 NTSTATUS IoCreateSymbolicLink(const char *symlink_name, const char *device_name);

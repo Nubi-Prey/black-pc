@@ -24,6 +24,7 @@
 #include "input/bindings.h"
 #include "input/mouselook.h"
 #include "sha1.h"
+#include "language.h"
 
 #include <SDL2/SDL.h>
 #include <csignal>
@@ -311,6 +312,10 @@ int main(int argc, char **argv)
             xposix::kposix_set_trace(true);
         } else if (arg == "--trace-d3d") {
             g_trace_d3d = true;
+        } else if (arg == "--language" || arg == "--locale") {
+            settings_mark_cli("language");
+            g_cfg.language = language::normalize(next_arg());
+            g_cfg.active_language = g_cfg.language;
         } else if (arg == "--help" || arg == "-h") {
             print_usage(argv[0]);
             return 0;
@@ -388,6 +393,33 @@ int main(int argc, char **argv)
     logc("SaveData:    %s", hdd_dir.c_str());
     logc("Log File:    %s", log_path.c_str());
     logc("Target FPS:  %d", g_cfg.fps);
+    if (g_cfg.active_language == "en") {
+        logc("Language:    English (default)");
+    } else {
+        std::string p_dir = narrow(g_cfg.port_dir);
+        if (p_dir.empty()) p_dir = ".";
+        std::vector<std::string> candidates = {
+            p_dir + "/language-banks/" + g_cfg.active_language,
+            p_dir + "/port/language-banks/" + g_cfg.active_language,
+            "./port/language-banks/" + g_cfg.active_language,
+            "./language-banks/" + g_cfg.active_language,
+        };
+        std::string applied_bank;
+        for (const auto &cand : candidates) {
+            std::string bank = cand + "/language/strings/MainUS.bin";
+            struct stat st_bank;
+            if (stat(bank.c_str(), &st_bank) == 0 && S_ISREG(st_bank.st_mode)) {
+                applied_bank = bank;
+                break;
+            }
+        }
+        if (applied_bank.empty()) {
+            logc("Language:    %s selected, but generated MainUS.bin not found (English fallback)",
+                 g_cfg.active_language.c_str());
+        } else {
+            logc("Language:    %s (applied from %s)", g_cfg.active_language.c_str(), applied_bank.c_str());
+        }
+    }
     logc("================================================================================");
 
     // Handle signals for graceful termination
@@ -463,6 +495,27 @@ int main(int argc, char **argv)
     if (!xposix::kposix_resolve_thunks(thunk_table)) {
         logc("[FATAL] Failed to resolve Xbox kernel thunks.");
         return 1;
+    }
+
+    // Localized language bank VFS mounting
+    if (g_cfg.active_language != "en" && !g_cfg.active_language.empty()) {
+        std::string p_dir = narrow(g_cfg.port_dir);
+        std::vector<std::string> candidates;
+        if (!p_dir.empty() && p_dir != ".") {
+            candidates.push_back(p_dir + "/language-banks/" + g_cfg.active_language);
+        }
+        candidates.push_back("./port/language-banks/" + g_cfg.active_language);
+        candidates.push_back("./language-banks/" + g_cfg.active_language);
+
+        for (const auto &cand : candidates) {
+            std::string bank = cand + "/language/strings/MainUS.bin";
+            struct stat st_b;
+            if (stat(bank.c_str(), &st_b) == 0 && S_ISREG(st_b.st_mode)) {
+                xposix::set_language_override(cand);
+                logc("[main_linux] Mounted localized language bank: '%s'", cand.c_str());
+                break;
+            }
+        }
     }
 
     // Front-end Flash/Apt UI injection

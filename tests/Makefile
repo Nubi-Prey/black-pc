@@ -95,7 +95,7 @@ test_d3dcompiler_posix: test_d3dcompiler_posix.cpp ../loader/src/platform/d3dcom
 	$(CXX) $(CXXFLAGS) $(DXVK_CFLAGS) $^ -o $@ $(LDFLAGS) $(DXVK_LDFLAGS)
 
 # --- End-to-End Integration ---
-test_fe_apt: test_fe_apt.cpp ../loader/src/fe/pages.cpp ../loader/src/fe/apt.cpp ../loader/src/fe/pc_settings.cpp ../loader/src/log.cpp
+test_fe_apt: test_fe_apt.cpp ../loader/src/fe/pages.cpp ../loader/src/fe/apt.cpp ../loader/src/fe/pc_settings.cpp ../loader/src/language.cpp ../loader/src/log.cpp
 	$(CXX) $(CXXFLAGS) $(DXVK_CFLAGS) $^ -o $@ $(LDFLAGS)
 
 test_boot_pipeline: test_boot_pipeline.cpp ../loader/src/platform/xbe_loader.cpp \

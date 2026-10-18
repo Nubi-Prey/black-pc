@@ -85,3 +85,5 @@ dist/
 # The port's rebuilt front-end files (made at start from the user's game files)
 cache/
 /loader/language-banks/
+language-banks/
+port/language-banks/

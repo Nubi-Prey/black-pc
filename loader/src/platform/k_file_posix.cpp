@@ -203,6 +203,14 @@ void set_cache_override(const std::string &cache_dir)
     g_cache_dir = cache_dir;
 }
 
+static std::string g_lang_dir;
+
+void set_language_override(const std::string &lang_dir)
+{
+    std::lock_guard<std::recursive_mutex> lock(g_file_mutex);
+    g_lang_dir = lang_dir;
+}
+
 std::string resolve_xbox_path(const std::string &xbox_path)
 {
     std::lock_guard<std::recursive_mutex> lock(g_file_mutex);
@@ -222,11 +230,21 @@ std::string resolve_xbox_path(const std::string &xbox_path)
     for (const auto &m : g_mounts) {
         if (low.rfind(m.key, 0) == 0) {
             std::string rel = p.substr(m.device.size());
-            if (m.readonly && !g_cache_dir.empty()) {
-                std::string cached = find_case_insensitive(g_cache_dir, rel);
-                struct stat st;
-                if (stat(cached.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
-                    return cached;
+            if (m.readonly) {
+                // If a localized language bank is active, check it before base game assets
+                if (!g_lang_dir.empty()) {
+                    std::string lang_file = find_case_insensitive(g_lang_dir, rel);
+                    struct stat st_lang;
+                    if (stat(lang_file.c_str(), &st_lang) == 0 && S_ISREG(st_lang.st_mode)) {
+                        return lang_file;
+                    }
+                }
+                if (!g_cache_dir.empty()) {
+                    std::string cached = find_case_insensitive(g_cache_dir, rel);
+                    struct stat st;
+                    if (stat(cached.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
+                        return cached;
+                    }
                 }
             }
             return find_case_insensitive(m.host, rel);
