@@ -391,7 +391,7 @@ void apply(uint16_t &buttons, uint8_t analog[8], int16_t &lx, int16_t &ly, int16
         g_menu_input_frame = g_frame_count.load();
         g_menu_input = input;
     }
-    g_menu_select = g_menu_down[4];
+    g_menu_select = g_menu_down[4] || (!play && (held(VK_SPACE) || held(VK_ESCAPE)));
     // Enter is the pad's A for the whole press when, as it went down, a hint stopped the game, or START when no menu
     // page was up (the intro text); a press a menu took stays the menu's.
     enum { kMenu, kA, kStart };

@@ -183,6 +183,8 @@ void print_usage(const char *prog)
     printf("  --resolution WxH  Internal render resolution (e.g. 1280x720, 1920x1080, native)\n");
     printf("  --window WxH      Host window dimensions (default: 1280x720)\n");
     printf("  --hud, --show-fps Enable DXVK on-screen Vulkan overlay HUD\n");
+    printf("  --skip-movies     Allow skipping movies/cutscenes with Enter/Space (default: true)\n");
+    printf("  --no-movie-skip   Do not allow skipping unearned movies\n");
     printf("  --fov <degrees>   Field of view (50 to 120, default: 70)\n");
     printf("  --autoaim         Enable auto-aim (default: disabled)\n");
     printf("  --no-autoaim      Disable auto-aim\n");
@@ -270,6 +272,12 @@ int main(int argc, char **argv)
             }
         } else if (arg == "--hud" || arg == "--show-fps") {
             setenv("DXVK_HUD", "fps,frametimes", 1);
+        } else if (arg == "--skip-movies") {
+            settings_mark_cli("skipanymovie");
+            g_cfg.skip_movies = true;
+        } else if (arg == "--no-movie-skip") {
+            settings_mark_cli("skipanymovie");
+            g_cfg.skip_movies = false;
         } else if (arg == "--fov") {
             settings_mark_cli("fov");
             g_cfg.fov = (float)atof(next_arg().c_str());
