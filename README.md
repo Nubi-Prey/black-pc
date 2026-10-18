@@ -51,7 +51,7 @@ The game is fully playable from start to finish on both Windows and Linux. Pleas
    ```bash
    extract-xiso -x "Black (USA).iso"
    ```
-   Rename the extracted folder to `game` (so that `game/default.xbe` exists).
+   Rename the extracted folder to `game`. The folder must contain `default.xbe` along with all game asset directories (`levels/`, `sound/`, `export/`, `data/`, `GlobData.bin`, etc.).
 
 2. Verify that you have the supported retail build:
    - **On Windows (PowerShell):**
@@ -89,20 +89,50 @@ The repository includes a 100% native Linux 32-bit ELF binary that interfaces di
      sudo dnf install SDL2.i686 vulkan-loader.i686
      ```
 
-2. Place `black_linux` next to your `game` directory:
-   ```text
-   black-pc/
-   ├── black_linux
-   ├── game/
-   │   └── default.xbe
-   ├── savedata/
-   └── tools/
-   ```
+2. Folder layout:
+   - **Standalone Release Package (recommended for players):**
+     Extract the release archive alongside your `game` directory:
+     ```text
+     BLACK/
+     ├── game/
+     │   ├── default.xbe
+     │   ├── GlobData.bin
+     │   ├── chars/
+     │   ├── data/
+     │   ├── export/
+     │   ├── language/
+     │   ├── levels/
+     │   ├── sound/
+     │   └── videos/
+     └── port/
+         ├── black_linux
+         ├── lib/
+         ├── README.md
+         ├── KEYBINDS.md
+         ├── black.ini    (auto-generated settings)
+         ├── black.log    (runtime log)
+         └── savedata/    (auto-generated save games)
+     ```
+   - **Development Build (running from source repository):**
+     ```text
+     black-pc/
+     ├── black_linux
+     ├── game/
+     │   ├── default.xbe
+     │   └── ... (all game assets)
+     ├── savedata/
+     └── tools/
+     ```
 
 3. Launch the game:
-   ```bash
-   ./black_linux game/default.xbe
-   ```
+   - From the standalone `port` folder:
+     ```bash
+     cd port && ./black_linux
+     ```
+   - Or from the repository root:
+     ```bash
+     ./black_linux game/default.xbe
+     ```
 
 ### Option 2: Running via Wine / Steam Deck Proton
 
@@ -118,13 +148,25 @@ If you prefer to run the Windows build (`black.exe` + `blackrt.dll`):
    ```text
    BLACK/
    ├── game/
-   │   └── default.xbe
-   ├── port/
-   │   ├── black.exe
-   │   └── blackrt.dll
-   └── savedata/
+   │   ├── default.xbe
+   │   ├── GlobData.bin
+   │   ├── chars/
+   │   ├── data/
+   │   ├── export/
+   │   ├── language/
+   │   ├── levels/
+   │   ├── sound/
+   │   └── videos/
+   └── port/
+       ├── black.exe
+       ├── blackrt.dll
+       ├── README.md
+       ├── KEYBINDS.md
+       ├── black.ini    (auto-generated settings)
+       ├── black.log    (runtime log)
+       └── savedata/    (auto-generated save games)
    ```
-2. Run `port\black.exe`.
+2. Run `port\black.exe` (or double-click it in Windows Explorer). The loader will automatically detect `..\game\default.xbe` and store save games in `port\savedata\`.
 
 ---
 
@@ -292,7 +334,7 @@ O jogo é 100% jogável do início ao fim tanto no Windows quanto no Linux. Caso
    ```bash
    extract-xiso -x "Black (USA).iso"
    ```
-   Renomeie a pasta extraída para `game` (garantindo que o arquivo `game/default.xbe` exista).
+   Renomeie a pasta extraída para `game`. A pasta deve conter o executável `default.xbe` acompanhado de todas as pastas e arquivos de assets do jogo (`levels/`, `sound/`, `export/`, `data/`, `GlobData.bin`, etc.).
 
 2. Verifique se a sua cópia corresponde à build suportada:
    - **No Windows (PowerShell):**
@@ -330,20 +372,50 @@ O projeto disponibiliza um binário ELF de 32 bits totalmente nativo para Linux,
      sudo dnf install SDL2.i686 vulkan-loader.i686
      ```
 
-2. Coloque o executável `black_linux` junto da pasta `game`:
-   ```text
-   black-pc/
-   ├── black_linux
-   ├── game/
-   │   └── default.xbe
-   ├── savedata/
-   └── tools/
-   ```
+2. Estrutura de pastas:
+   - **Pacote de Release Standalone (recomendado para jogadores):**
+     Extraia o pacote de release ao lado da pasta `game`:
+     ```text
+     BLACK/
+     ├── game/
+     │   ├── default.xbe
+     │   ├── GlobData.bin
+     │   ├── chars/
+     │   ├── data/
+     │   ├── export/
+     │   ├── language/
+     │   ├── levels/
+     │   ├── sound/
+     │   └── videos/
+     └── port/
+         ├── black_linux
+         ├── lib/
+         ├── README.md
+         ├── KEYBINDS.md
+         ├── black.ini    (gerado na primeira execução)
+         ├── black.log    (log de execução)
+         └── savedata/    (gerado automaticamente para os saves)
+     ```
+   - **Ambiente de Desenvolvimento (executando direto do código-fonte):**
+     ```text
+     black-pc/
+     ├── black_linux
+     ├── game/
+     │   ├── default.xbe
+     │   └── ... (todos os assets do jogo)
+     ├── savedata/
+     └── tools/
+     ```
 
 3. Inicie o jogo pelo terminal:
-   ```bash
-   ./black_linux game/default.xbe
-   ```
+   - A partir da pasta standalone `port`:
+     ```bash
+     cd port && ./black_linux
+     ```
+   - Ou da raiz do repositório:
+     ```bash
+     ./black_linux game/default.xbe
+     ```
 
 ### Opção 2: Execução via Wine / Proton (Steam Deck)
 
@@ -359,13 +431,25 @@ Se preferir rodar a versão de Windows (`black.exe` + `blackrt.dll`):
    ```text
    BLACK/
    ├── game/
-   │   └── default.xbe
-   ├── port/
-   │   ├── black.exe
-   │   └── blackrt.dll
-   └── savedata/
+   │   ├── default.xbe
+   │   ├── GlobData.bin
+   │   ├── chars/
+   │   ├── data/
+   │   ├── export/
+   │   ├── language/
+   │   ├── levels/
+   │   ├── sound/
+   │   └── videos/
+   └── port/
+       ├── black.exe
+       ├── blackrt.dll
+       ├── README.md
+       ├── KEYBINDS.md
+       ├── black.ini    (gerado na primeira execução)
+       ├── black.log    (log de execução)
+       └── savedata/    (gerado automaticamente para os saves)
    ```
-2. Execute `port\black.exe`.
+2. Execute `port\black.exe` (ou dê duplo clique pelo Explorador de Arquivos do Windows). O loader localizará automaticamente os assets em `..\game\default.xbe` e manterá os saves e configurações em `port\savedata\`.
 
 ---
 
