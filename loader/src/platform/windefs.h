@@ -179,6 +179,7 @@ typedef void*     HWND;
 #define VK_DECIMAL        0x6E
 #define VK_DIVIDE         0x6F
 #define VK_F1             0x70
+#define VK_F12            0x7B
 #define VK_F24            0x87
 #define VK_NUMLOCK        0x90
 #define VK_SCROLL         0x91

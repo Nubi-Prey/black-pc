@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <cstring>
 
+extern "C" short GetAsyncKeyState(int vk);
+
 static void check(bool condition, const char *msg)
 {
     if (!condition) {
@@ -84,7 +86,19 @@ int main()
     input_sdl::set_rumble(0, 32000, 32000);
     input_sdl::set_rumble(1, 0, 0);
 
-    // 8. Shutdown input system cleanly
+    // 8. Test extended virtual keys in GetAsyncKeyState (F1-F12, NumPad, Home/End, etc.)
+    check(GetAsyncKeyState(0x70 /* VK_F1 */) == 0, "VK_F1 should query without crash");
+    check(GetAsyncKeyState(0x7B /* VK_F12 */) == 0, "VK_F12 should query without crash");
+    check(GetAsyncKeyState(0x60 /* VK_NUMPAD0 */) == 0, "VK_NUMPAD0 should query without crash");
+    check(GetAsyncKeyState(0x69 /* VK_NUMPAD9 */) == 0, "VK_NUMPAD9 should query without crash");
+    check(GetAsyncKeyState(0x24 /* VK_HOME */) == 0, "VK_HOME should query without crash");
+    check(GetAsyncKeyState(0x23 /* VK_END */) == 0, "VK_END should query without crash");
+    check(GetAsyncKeyState(0x21 /* VK_PRIOR PageUp */) == 0, "VK_PRIOR should query without crash");
+    check(GetAsyncKeyState(0x22 /* VK_NEXT PageDown */) == 0, "VK_NEXT should query without crash");
+    check(GetAsyncKeyState(0x14 /* VK_CAPITAL */) == 0, "VK_CAPITAL should query without crash");
+    check(GetAsyncKeyState(0x6A /* VK_MULTIPLY */) == 0, "VK_MULTIPLY should query without crash");
+
+    // 9. Shutdown input system cleanly
     input_sdl::shutdown();
 
     std::printf("[PASS] test_sdl_input completed successfully with zero errors.\n\n");

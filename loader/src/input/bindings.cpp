@@ -303,6 +303,29 @@ void save_ini(FILE *f)
     }
 }
 
+void print_table()
+{
+    ensure_defaults();
+    printf("\n========================================================================================\n");
+    printf("                    BLACK Linux x86 - Keybinds e Controles Ativos                      \n");
+    printf("========================================================================================\n");
+    printf(" %-24s | %-16s | %-16s | %-20s\n", "Acao / Action", "Tecla 1", "Tecla 2", "Parametro black.ini");
+    printf("--------------------------+------------------+------------------+-----------------------\n");
+    for (int i = 0; i < kCount; i++) {
+        std::string k1 = ini_name(g_keys[i][0]);
+        std::string k2 = ini_name(g_keys[i][1]);
+        char name_mb[64];
+        snprintf(name_mb, sizeof(name_mb), "%ls", kActions[i].name);
+        printf(" %-24s | %-16s | %-16s | key_%-16s\n", name_mb, k1.c_str(), k2.c_str(), kActions[i].ini);
+    }
+    printf("========================================================================================\n");
+    printf(" [Controle do Mouse]: Rotacao de Camera (Olhar) | Clique p/ Capturar | Esc p/ Liberar   \n");
+    printf(" [Menus]: Setas (Navegacao), Enter (Selecionar/Start), Backspace (Voltar)               \n");
+    printf(" [Cutscenes]: Enter, Espaco ou Esc para pular                                           \n");
+    printf(" [Gamepad]: Suporte nativo completo via SDL2 (Xbox 360 / One / Series / PS4 / PS5)      \n");
+    printf(" Consulte KEYBINDS.md para o guia completo e lista de nomes aceitos no black.ini.       \n\n");
+}
+
 void script_hold(const std::string &name)
 {
     uint16_t k = parse_key(name);

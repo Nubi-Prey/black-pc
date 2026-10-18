@@ -277,6 +277,8 @@ extern "C" SHORT GetAsyncKeyState(int vk)
     SDL_Scancode sc = SDL_SCANCODE_UNKNOWN;
     if (vk >= 'A' && vk <= 'Z') sc = (SDL_Scancode)(SDL_SCANCODE_A + (vk - 'A'));
     else if (vk >= '0' && vk <= '9') sc = (vk == '0') ? SDL_SCANCODE_0 : (SDL_Scancode)(SDL_SCANCODE_1 + (vk - '1'));
+    else if (vk >= VK_F1 && vk <= VK_F12) sc = (SDL_Scancode)(SDL_SCANCODE_F1 + (vk - VK_F1));
+    else if (vk >= VK_NUMPAD0 && vk <= VK_NUMPAD9) sc = (vk == VK_NUMPAD0) ? SDL_SCANCODE_KP_0 : (SDL_Scancode)(SDL_SCANCODE_KP_1 + (vk - VK_NUMPAD0 - 1));
     else {
         switch (vk) {
             case VK_RETURN: sc = SDL_SCANCODE_RETURN; break;
@@ -298,6 +300,20 @@ extern "C" SHORT GetAsyncKeyState(int vk)
             case VK_LMENU: sc = SDL_SCANCODE_LALT; break;
             case VK_RMENU: sc = SDL_SCANCODE_RALT; break;
             case VK_DELETE: sc = SDL_SCANCODE_DELETE; break;
+            case VK_INSERT: sc = SDL_SCANCODE_INSERT; break;
+            case VK_HOME: sc = SDL_SCANCODE_HOME; break;
+            case VK_END: sc = SDL_SCANCODE_END; break;
+            case VK_PRIOR: sc = SDL_SCANCODE_PAGEUP; break;
+            case VK_NEXT: sc = SDL_SCANCODE_PAGEDOWN; break;
+            case VK_CAPITAL: sc = SDL_SCANCODE_CAPSLOCK; break;
+            case VK_PAUSE: sc = SDL_SCANCODE_PAUSE; break;
+            case VK_SCROLL: sc = SDL_SCANCODE_SCROLLLOCK; break;
+            case VK_NUMLOCK: sc = SDL_SCANCODE_NUMLOCKCLEAR; break;
+            case VK_MULTIPLY: sc = SDL_SCANCODE_KP_MULTIPLY; break;
+            case VK_ADD: sc = SDL_SCANCODE_KP_PLUS; break;
+            case VK_SUBTRACT: sc = SDL_SCANCODE_KP_MINUS; break;
+            case VK_DECIMAL: sc = SDL_SCANCODE_KP_PERIOD; break;
+            case VK_DIVIDE: sc = SDL_SCANCODE_KP_DIVIDE; break;
             default: break;
         }
     }

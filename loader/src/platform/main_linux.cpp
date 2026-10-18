@@ -21,6 +21,7 @@
 #include "settings.h"
 #include "timing.h"
 #include "input/autoaim.h"
+#include "input/bindings.h"
 #include "input/mouselook.h"
 #include "sha1.h"
 
@@ -190,6 +191,7 @@ void print_usage(const char *prog)
     printf("  --no-autoaim      Disable auto-aim\n");
     printf("  --no-pc-menus     Do not build/inject PC SETTINGS frontend pages\n");
     printf("  --force           Bypass SHA-256 verification of default.xbe\n");
+    printf("  --keybinds, --list-binds  Print current keybindings and controls table and exit\n");
     printf("  --trace           Log kernel exports on call\n");
     printf("  --trace-d3d       Log D3D API calls\n");
     printf("  --help, -h        Show this help message\n");
@@ -223,7 +225,11 @@ int main(int argc, char **argv)
             return "";
         };
 
-        if (arg == "--info") {
+        if (arg == "--keybinds" || arg == "--list-binds") {
+            settings_load();
+            bindings::print_table();
+            return 0;
+        } else if (arg == "--info") {
             g_cfg.info_only = true;
         } else if (arg == "--hdd") {
             hdd_dir = next_arg();

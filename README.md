@@ -153,6 +153,9 @@ Keys and mouse buttons are bound to the game's own actions, not to controller bu
 
 In menus the arrow keys move, Enter selects and Backspace goes back; Enter also passes PRESS START, skips movies and intro text, and closes hints. QUIT at the bottom of the main menu closes the game. 
 
+> [!TIP]
+> Para o guia detalhado com mapeamento completo de gamepad, opções do `black.ini`, navegação e customização avançada, consulte **[KEYBINDS.md](KEYBINDS.md)** ou execute `./black_linux --keybinds`.
+
 ## Settings
 
 The port's settings are in the game's menus: Options > PC SETTINGS on the main menu, and PC SETTINGS in the pause menu.

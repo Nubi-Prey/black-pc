@@ -27,6 +27,7 @@ std::wstring key_name(uint16_t k);
 
 bool load_ini(const char *key, const char *value); // black.ini lines key_<ini>; false if not one of ours
 void save_ini(FILE *f);
+void print_table();
 
 // Once per pad poll (input/xinput.cpp): in play, the bound keys and mouse buttons pressed into the Xbox pad, through
 // the game's current binding table; in menus, the menu keys for take_menu_input. focus: the game window is in front;
