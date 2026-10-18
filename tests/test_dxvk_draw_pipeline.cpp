@@ -19,6 +19,7 @@ static void check(bool cond, const char *msg)
 int main()
 {
     std::printf("=== Running test_dxvk_draw_pipeline (Phase 4) ===\n");
+    setenv("DXVK_WSI_DRIVER", "SDL2", 1);
 
     // 1. Initialize SDL2
     check(SDL_Init(SDL_INIT_VIDEO) == 0, "SDL_Init failed");
@@ -153,13 +154,30 @@ int main()
     hr = dev->DrawPrimitive(D3DPT_TRIANGLELIST, 0, 1);
     check(SUCCEEDED(hr), "DrawPrimitive failed");
 
+    // Test DrawIndexedPrimitiveUP with non-zero indices rebased to 0 (Mission 2 weapon/level mesh pattern)
+    Vertex up_verts[4] = {
+        { -0.2f, -0.2f, 0.0f, 1.0f },
+        {  0.2f, -0.2f, 0.0f, 1.0f },
+        {  0.2f,  0.2f, 0.0f, 1.0f },
+        { -0.2f,  0.2f, 0.0f, 1.0f },
+    };
+    // Non-zero raw indices (e.g. mn=100, mx=103)
+    uint16_t raw_idx[6] = { 100, 101, 102, 100, 102, 103 };
+    uint16_t mn = 100, mx = 103;
+    uint16_t rebased[6];
+    for (int i = 0; i < 6; i++) rebased[i] = raw_idx[i] - mn;
+
+    hr = dev->DrawIndexedPrimitiveUP(D3DPT_TRIANGLELIST, 0, mx - mn + 1, 2, rebased, D3DFMT_INDEX16, up_verts, sizeof(Vertex));
+    check(SUCCEEDED(hr), "DrawIndexedPrimitiveUP with rebased indices failed");
+    std::printf("[test_dxvk_draw_pipeline] DrawIndexedPrimitiveUP (rebased non-zero indices) executed successfully!\n");
+
     hr = dev->EndScene();
     check(SUCCEEDED(hr), "dev->EndScene failed");
 
     hr = dev->Present(nullptr, nullptr, nullptr, nullptr);
     check(SUCCEEDED(hr), "dev->Present failed");
 
-    std::printf("[test_dxvk_draw_pipeline] DrawPrimitive(TRIANGLELIST) executed and presented via Vulkan!\n");
+    std::printf("[test_dxvk_draw_pipeline] DrawPrimitive & DrawIndexedPrimitiveUP executed and presented via Vulkan!\n");
 
     // 8. Clean up
     vb->Release();
