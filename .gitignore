@@ -57,6 +57,7 @@ tests/test_dxvk_draw_pipeline
 tests/test_d3dcompiler_posix
 tests/test_gate4_runner
 tests/test_fe_apt
+tests/test_mouselook_pipeline
 build/
 black_linux
 scratch/

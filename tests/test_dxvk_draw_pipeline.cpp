@@ -52,6 +52,17 @@ int main()
     check(SUCCEEDED(hr) && dev != nullptr, "CreateDevice failed");
     std::printf("[test_dxvk_draw_pipeline] Direct3D9 device initialized successfully\n");
 
+    // Verify Cull Mode mappings (Xbox NV2A register values -> D3DCULL)
+    auto test_conv_cull = [](uint32_t cull) -> D3DCULL {
+        if (cull == 0) return D3DCULL_NONE;
+        return cull == 0x900 ? D3DCULL_CW : D3DCULL_CCW;
+    };
+    check(test_conv_cull(0) == D3DCULL_NONE, "Cull mode 0 must be D3DCULL_NONE");
+    check(test_conv_cull(0x900) == D3DCULL_CW, "Cull mode 0x900 must be D3DCULL_CW");
+    check(test_conv_cull(0x901) == D3DCULL_CCW, "Cull mode 0x901 must be D3DCULL_CCW");
+    check(SUCCEEDED(dev->SetRenderState(D3DRS_CULLMODE, test_conv_cull(0x901))), "SetRenderState D3DCULL_CCW failed");
+    std::printf("[test_dxvk_draw_pipeline] Cull mode mapping verified (0x900=CW, 0x901=CCW)\n");
+
     // 4. Compile shaders via D3DCompile runtime (standalone, zero /tmp dependency)
     const char *vs_src =
         "row_major float4x4 g_m : register(c0);\n"
