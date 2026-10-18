@@ -118,6 +118,19 @@ int reg_code(const std::string &r)
     return -1;
 }
 
+static int reg_ebp_offset(int r)
+{
+    switch (r) {
+    case 0: return -24; // eax
+    case 1: return -16; // ecx
+    case 2: return -20; // edx
+    case 3: return -4;  // ebx
+    case 6: return -8;  // esi
+    case 7: return -12; // edi
+    default: return 0;
+    }
+}
+
 // Generate the thunk described in dispatch.h. Returns nullptr on a bad spec.
 void *make_thunk(const xd3d::Hle &h)
 {
@@ -141,38 +154,57 @@ void *make_thunk(const xd3d::Hle &h)
     }
     uint8_t buf[256];
     int n = 0;
-    int saved = 0;
-    buf[n++] = 0x51; // push ecx
-    buf[n++] = 0x52; // push edx
-    saved = 2;
-    if (!h.returns) {
-        buf[n++] = 0x50; // push eax
-        saved = 3;
+
+    // 1. Establish standard frame pointer and save registers
+    buf[n++] = 0x55;                   // push ebp
+    buf[n++] = 0x89; buf[n++] = 0xE5; // mov ebp, esp
+    buf[n++] = 0x53;                   // push ebx (-4)
+    buf[n++] = 0x56;                   // push esi (-8)
+    buf[n++] = 0x57;                   // push edi (-12)
+    buf[n++] = 0x51;                   // push ecx (-16)
+    buf[n++] = 0x52;                   // push edx (-20)
+    buf[n++] = 0x50;                   // push eax (-24)
+
+    // 2. Align stack to 16 bytes for System V ABI (DXVK / Vulkan SSE requirements)
+    int P = (int)params.size();
+    int pad = (16 - ((P * 4) % 16)) % 16;
+    buf[n++] = 0x83; buf[n++] = 0xE4; buf[n++] = 0xF0; // and esp, 0xFFFFFFF0
+    if (pad > 0) {
+        buf[n++] = 0x83; buf[n++] = 0xEC; buf[n++] = (uint8_t)pad; // sub esp, pad
     }
-    int pushed = 0;
-    for (int i = (int)params.size() - 1; i >= 0; i--) {
-        if (stack_index[i] >= 0) {
-            int off = 4 + 4 * stack_index[i] + 4 * (saved + pushed);
-            if (off < 128) {
-                buf[n++] = 0xFF; buf[n++] = 0x74; buf[n++] = 0x24; buf[n++] = (uint8_t)off; // push [esp+off8]
-            } else {
-                buf[n++] = 0xFF; buf[n++] = 0xB4; buf[n++] = 0x24;
-                memcpy(buf + n, &off, 4);
-                n += 4;
-            }
+
+    // 3. Push arguments in reverse order relative to ebp frame
+    for (int i = P - 1; i >= 0; i--) {
+        int off = (stack_index[i] >= 0) ? (8 + 4 * stack_index[i]) : reg_ebp_offset(reg_code(params[i]));
+        if (off >= -128 && off < 128) {
+            buf[n++] = 0xFF; buf[n++] = 0x75; buf[n++] = (uint8_t)off; // push dword ptr [ebp+off8]
         } else {
-            buf[n++] = (uint8_t)(0x50 + reg_code(params[i])); // push reg
+            buf[n++] = 0xFF; buf[n++] = 0xB5;                           // push dword ptr [ebp+off32]
+            memcpy(buf + n, &off, 4);
+            n += 4;
         }
-        pushed++;
     }
+
+    // 4. Call implementation
     buf[n++] = 0xB8; // mov eax, impl
     uint32_t impl = (uint32_t)(uintptr_t)h.impl;
     memcpy(buf + n, &impl, 4);
     n += 4;
     buf[n++] = 0xFF; buf[n++] = 0xD0; // call eax (impl is __stdcall: pops its parameters)
-    if (!h.returns) buf[n++] = 0x58; // pop eax
-    buf[n++] = 0x5A; // pop edx
-    buf[n++] = 0x59; // pop ecx
+
+    // 5. Restore registers
+    if (!h.returns) {
+        buf[n++] = 0x8B; buf[n++] = 0x45; buf[n++] = 0xE8; // mov eax, [ebp-24]
+    }
+    buf[n++] = 0x8B; buf[n++] = 0x55; buf[n++] = 0xEC; // mov edx, [ebp-20]
+    buf[n++] = 0x8B; buf[n++] = 0x4D; buf[n++] = 0xF0; // mov ecx, [ebp-16]
+    buf[n++] = 0x8B; buf[n++] = 0x7D; buf[n++] = 0xF4; // mov edi, [ebp-12]
+    buf[n++] = 0x8B; buf[n++] = 0x75; buf[n++] = 0xF8; // mov esi, [ebp-8]
+    buf[n++] = 0x8B; buf[n++] = 0x5D; buf[n++] = 0xFC; // mov ebx, [ebp-4]
+
+    // 6. Tear down frame and return
+    buf[n++] = 0x89; buf[n++] = 0xEC; // mov esp, ebp
+    buf[n++] = 0x5D;                 // pop ebp
     if (stack_args) {
         buf[n++] = 0xC2; // ret imm16
         uint16_t r = (uint16_t)(stack_args * 4);

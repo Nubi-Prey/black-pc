@@ -361,3 +361,10 @@ NTSTATUS NtClose(HANDLE handle)
 }
 
 } // namespace xposix
+
+void ksync_signal_object(void *object)
+{
+    if (object) {
+        xposix::KeSetEvent((XDISPATCHER_HEADER *)object, 0, false);
+    }
+}

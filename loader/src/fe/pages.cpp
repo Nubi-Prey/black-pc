@@ -944,7 +944,9 @@ void pause_page(Movie &mv)
 // ---------------------------------------------------------------------------------------------------- files
 bool read_file(const std::wstring &path, Bytes &out)
 {
-    std::ifstream f(path, std::ios::binary);
+    std::string p = narrow(path);
+    for (char &c : p) { if (c == '\\') c = '/'; }
+    std::ifstream f(p, std::ios::binary);
     if (!f) return false;
     out.assign(std::istreambuf_iterator<char>(f), {});
     return true;
@@ -952,12 +954,18 @@ bool read_file(const std::wstring &path, Bytes &out)
 
 bool write_file(const std::wstring &path, const Bytes &data)
 {
-    for (size_t i = path.find(L'\\', 3); i != std::wstring::npos; i = path.find(L'\\', i + 1))
-        CreateDirectoryW(path.substr(0, i).c_str(), nullptr); // each folder on the way
-    std::ofstream f(path, std::ios::binary | std::ios::trunc);
+    std::string p = narrow(path);
+    for (char &c : p) { if (c == '\\') c = '/'; }
+    for (size_t i = 1; i < p.size(); i++) {
+        if (p[i] == '/') {
+            std::string sub = p.substr(0, i);
+            mkdir(sub.c_str(), 0755);
+        }
+    }
+    std::ofstream f(p, std::ios::binary | std::ios::trunc);
     f.write((const char *)data.data(), (std::streamsize)data.size());
     f.close();
-    if (!f) logf("fe: cannot write %s", narrow(path).c_str());
+    if (!f) logf("fe: cannot write %s", p.c_str());
     return (bool)f;
 }
 

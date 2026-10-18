@@ -9,6 +9,8 @@
 #include "input/bindings.h"
 #include "input/mouselook.h"
 #include "input/movies.h"
+#include "platform/host_sdl.h"
+#include "platform/input_sdl.h"
 
 #include <algorithm>
 #include <cmath>
@@ -63,6 +65,7 @@ bool g_reported_insertion;
 
 void load_xinput()
 {
+#if defined(_WIN32)
     static bool tried;
     if (tried) return;
     tried = true;
@@ -73,6 +76,9 @@ void load_xinput()
         g_pc_set = (PFN_SetState)GetProcAddress(m, "XInputSetState");
     }
     logf("[input] PC XInput %s; keyboard mapping active when the game window has focus", g_pc_get ? "loaded" : "not available");
+#else
+    logf("[input] Linux SDL2 input active; keyboard, mouse, and gamepads connected");
+#endif
 }
 
 // --press "frame:button,..." or "SECONDSs:button,...": scripted presses for unattended test runs, held for
@@ -134,12 +140,25 @@ void show_hint(int id)
     float *v = vec;
     uint32_t fn = 0x0012B3C0;
     logf("[input] tests: showing hint %d", id);
+#if defined(_MSC_VER)
     __asm {
         push v
         push hud
         mov eax, id
         call fn
     }
+#else
+    __asm__ volatile (
+        "pushl %0\n\t"
+        "pushl %1\n\t"
+        "movl %2, %%eax\n\t"
+        "call *%3\n\t"
+        "addl $8, %%esp\n\t"
+        :
+        : "m"(v), "m"(hud), "m"(id), "m"(fn)
+        : "eax", "ecx", "edx", "memory"
+    );
+#endif
 }
 
 // --press-file: a test driver appends lines while the game runs: a press as in --press without the time ("k:Enter",
@@ -284,6 +303,7 @@ void read_pad(uint32_t port, XGamepad &g)
 {
     memset(&g, 0, sizeof g);
     if (port != 0) return;
+#if defined(_WIN32)
     static uint32_t polls, absent[4]; // absent: the poll count when a slot was last found empty
     polls++;
     for (DWORD i = 0; g_pc_get && i < 4; i++) {
@@ -307,8 +327,21 @@ void read_pad(uint32_t port, XGamepad &g)
         merge_stick(g.sThumbLX, g.sThumbLY, p.sThumbLX, p.sThumbLY);
         merge_stick(g.sThumbRX, g.sThumbRY, p.sThumbRX, p.sThumbRY);
     }
-    apply_presses(g);
     bool focus = GetForegroundWindow() == host3d::window();
+#else
+    input_sdl::poll();
+    XboxInputState sdl_state{};
+    if (input_sdl::get_state(0, &sdl_state)) {
+        g.wButtons = sdl_state.Gamepad.wButtons;
+        memcpy(g.bAnalogButtons, sdl_state.Gamepad.bAnalogButtons, sizeof(g.bAnalogButtons));
+        g.sThumbLX = sdl_state.Gamepad.sThumbLX;
+        g.sThumbLY = sdl_state.Gamepad.sThumbLY;
+        g.sThumbRX = sdl_state.Gamepad.sThumbRX;
+        g.sThumbRY = sdl_state.Gamepad.sThumbRY;
+    }
+    bool focus = host_sdl::is_open();
+#endif
+    apply_presses(g);
     bool live = focus && host3d::mouse_captured();
     int raw_wheel;
     int wheel = mouse_look(live, &raw_wheel);
@@ -357,6 +390,7 @@ void __stdcall XInputClose(Device *h)
 uint32_t __stdcall XInputGetState(Device *h, XState *pState)
 {
     if (!h || h->magic != DEV_MAGIC) return ERROR_DEVICE_NOT_CONNECTED;
+#if defined(_WIN32)
     if (g_cfg.watch_pad && !g_pad_watch && g_frame_count >= g_cfg.watch_pad) {
         // Debug: hardware read/write breakpoint (DR3, 2 bytes) on this thread over sThumbRX of the game's buffer.
         uint32_t base = g_cfg.watch_read_deref ? *(uint32_t *)(uintptr_t)g_cfg.watch_read : g_cfg.watch_read;
@@ -371,6 +405,7 @@ uint32_t __stdcall XInputGetState(Device *h, XState *pState)
         BOOL ok = SetThreadContext(GetCurrentThread(), &c);
         logf("[input] watching right-stick reads at %08x (%s)", g_pad_watch, ok ? "set" : "FAILED");
     }
+#endif
     static std::atomic<uint32_t> polls{0};
     if ((++polls % 600) == 1) logf("[input] XInputGetState poll #%u (frame %u)", polls.load(), g_frame_count.load());
     XGamepad g;
@@ -389,7 +424,11 @@ uint32_t __stdcall XInputSetState(Device *h, uint8_t *pFeedback)
 {
     if (!h || h->magic != DEV_MAGIC) return ERROR_DEVICE_NOT_CONNECTED;
     PcVibration v = {*(uint16_t *)(pFeedback + 68), *(uint16_t *)(pFeedback + 70)};
+#if defined(_WIN32)
     for (DWORD i = 0; g_pc_set && h->port == 0 && i < 4; i++) g_pc_set(i, &v); // port 0 = every PC pad
+#else
+    if (h->port == 0) input_sdl::set_rumble(0, v.wLeftMotorSpeed, v.wRightMotorSpeed);
+#endif
     *(uint32_t *)pFeedback = ERROR_SUCCESS; // completed immediately
     if (HANDLE ev = *(HANDLE *)(pFeedback + 4)) SetEvent(ev);
     return ERROR_IO_PENDING;

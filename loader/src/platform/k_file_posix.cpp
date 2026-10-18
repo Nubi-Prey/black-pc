@@ -1,5 +1,5 @@
-// POSIX Virtual Filesystem and Device Mounts Implementation for Xbox kernel
 #include "k_file_posix.h"
+#include "k_sync_posix.h"
 
 #include <cctype>
 #include <cerrno>
@@ -59,6 +59,7 @@ std::map<std::string, std::string> g_symlinks; // lowercase link -> device
 std::unordered_map<HANDLE, FileHandle*> g_open_files;
 uint32_t g_next_file_handle = 0x3000;
 bool g_initialized = false;
+std::string g_cache_dir;
 
 std::string to_lower(std::string s)
 {
@@ -162,6 +163,12 @@ NTSTATUS IoDeleteSymbolicLink(const char *symlink_name)
     return 0;
 }
 
+void set_cache_override(const std::string &cache_dir)
+{
+    std::lock_guard<std::recursive_mutex> lock(g_file_mutex);
+    g_cache_dir = cache_dir;
+}
+
 std::string resolve_xbox_path(const std::string &xbox_path)
 {
     std::lock_guard<std::recursive_mutex> lock(g_file_mutex);
@@ -181,6 +188,13 @@ std::string resolve_xbox_path(const std::string &xbox_path)
     for (const auto &m : g_mounts) {
         if (low.rfind(m.key, 0) == 0) {
             std::string rel = p.substr(m.device.size());
+            if (m.readonly && !g_cache_dir.empty()) {
+                std::string cached = find_case_insensitive(g_cache_dir, rel);
+                struct stat st;
+                if (stat(cached.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
+                    return cached;
+                }
+            }
             return find_case_insensitive(m.host, rel);
         }
     }
@@ -282,12 +296,27 @@ NTSTATUS NtOpenFile(HANDLE *out_handle, ACCESS_MASK desired_access, void *obj_at
 NTSTATUS NtReadFile(HANDLE handle, HANDLE event, void *apc_routine, void *apc_context, void *io_status,
                     void *buffer, uint32_t length, const LARGE_INTEGER *byte_offset)
 {
-    (void)event; (void)apc_routine; (void)apc_context;
-    if (!buffer) return 0xC000000DL;
+    (void)apc_routine; (void)apc_context;
+    if (!buffer) {
+        printf("  [VFS ERROR] NtReadFile called with NULL buffer! (handle=%p, length=%u)\n", handle, length);
+        if (io_status) {
+            ((XIO_STATUS_BLOCK *)io_status)->Status = 0xC000000DL;
+            ((XIO_STATUS_BLOCK *)io_status)->Information = 0;
+        }
+        if (event) NtSetEvent(event, nullptr);
+        return 0xC000000DL;
+    }
 
     std::lock_guard<std::recursive_mutex> lock(g_file_mutex);
     auto it = g_open_files.find(handle);
-    if (it == g_open_files.end() || it->second->is_dir) return 0xC0000008L; // STATUS_INVALID_HANDLE
+    if (it == g_open_files.end() || it->second->is_dir) {
+        if (io_status) {
+            ((XIO_STATUS_BLOCK *)io_status)->Status = 0xC0000008L;
+            ((XIO_STATUS_BLOCK *)io_status)->Information = 0;
+        }
+        if (event) NtSetEvent(event, nullptr);
+        return 0xC0000008L; // STATUS_INVALID_HANDLE
+    }
 
     int fd = it->second->fd;
     ssize_t rd = 0;
@@ -297,24 +326,45 @@ NTSTATUS NtReadFile(HANDLE handle, HANDLE event, void *apc_routine, void *apc_co
         rd = read(fd, buffer, length);
     }
 
-    if (rd < 0) return 0xC0000001L; // STATUS_UNSUCCESSFUL
+    NTSTATUS status = 0;
+    if (rd < 0) {
+        status = 0xC0000001L; // STATUS_UNSUCCESSFUL
+        rd = 0;
+    }
 
     if (io_status) {
-        ((XIO_STATUS_BLOCK *)io_status)->Status = 0;
+        ((XIO_STATUS_BLOCK *)io_status)->Status = status;
         ((XIO_STATUS_BLOCK *)io_status)->Information = (uint32_t)rd;
     }
-    return 0;
+    if (event) {
+        NtSetEvent(event, nullptr);
+    }
+    return status;
 }
 
 NTSTATUS NtWriteFile(HANDLE handle, HANDLE event, void *apc_routine, void *apc_context, void *io_status,
                      const void *buffer, uint32_t length, const LARGE_INTEGER *byte_offset)
 {
-    (void)event; (void)apc_routine; (void)apc_context;
-    if (!buffer) return 0xC000000DL;
+    (void)apc_routine; (void)apc_context;
+    if (!buffer) {
+        if (io_status) {
+            ((XIO_STATUS_BLOCK *)io_status)->Status = 0xC000000DL;
+            ((XIO_STATUS_BLOCK *)io_status)->Information = 0;
+        }
+        if (event) NtSetEvent(event, nullptr);
+        return 0xC000000DL;
+    }
 
     std::lock_guard<std::recursive_mutex> lock(g_file_mutex);
     auto it = g_open_files.find(handle);
-    if (it == g_open_files.end() || it->second->is_dir) return 0xC0000008L;
+    if (it == g_open_files.end() || it->second->is_dir) {
+        if (io_status) {
+            ((XIO_STATUS_BLOCK *)io_status)->Status = 0xC0000008L;
+            ((XIO_STATUS_BLOCK *)io_status)->Information = 0;
+        }
+        if (event) NtSetEvent(event, nullptr);
+        return 0xC0000008L;
+    }
 
     int fd = it->second->fd;
     ssize_t wr = 0;
@@ -324,26 +374,58 @@ NTSTATUS NtWriteFile(HANDLE handle, HANDLE event, void *apc_routine, void *apc_c
         wr = write(fd, buffer, length);
     }
 
-    if (wr < 0) return 0xC0000001L;
+    NTSTATUS status = 0;
+    if (wr < 0) {
+        status = 0xC0000001L;
+        wr = 0;
+    }
 
     if (io_status) {
-        ((XIO_STATUS_BLOCK *)io_status)->Status = 0;
+        ((XIO_STATUS_BLOCK *)io_status)->Status = status;
         ((XIO_STATUS_BLOCK *)io_status)->Information = (uint32_t)wr;
     }
-    return 0;
+    if (event) {
+        NtSetEvent(event, nullptr);
+    }
+    return status;
 }
 
 NTSTATUS NtQueryInformationFile(HANDLE handle, void *io_status, void *file_info, uint32_t length, uint32_t info_class)
 {
     (void)length;
+    if (!file_info) return 0xC000000DL;
+
     std::lock_guard<std::recursive_mutex> lock(g_file_mutex);
     auto it = g_open_files.find(handle);
     if (it == g_open_files.end()) return 0xC0000008L;
 
-    struct stat st;
-    if (fstat(it->second->fd, &st) != 0) return 0xC0000001L;
+    struct stat st{};
+    if (it->second->fd >= 0) {
+        if (fstat(it->second->fd, &st) != 0) return 0xC0000001L;
+    } else if (!it->second->host_path.empty()) {
+        if (stat(it->second->host_path.c_str(), &st) != 0) return 0xC0000001L;
+    }
 
-    if (info_class == 5) { // FileStandardInformation
+    uint32_t written = 0;
+    switch (info_class) {
+    case 4: { // FileBasicInformation
+        struct {
+            int64_t CreationTime;
+            int64_t LastAccessTime;
+            int64_t LastWriteTime;
+            int64_t ChangeTime;
+            uint32_t FileAttributes;
+        } *fbi = (decltype(fbi))file_info;
+        int64_t t = ((int64_t)st.st_mtime + 11644473600LL) * 10000000LL;
+        fbi->CreationTime = t;
+        fbi->LastAccessTime = t;
+        fbi->LastWriteTime = t;
+        fbi->ChangeTime = t;
+        fbi->FileAttributes = S_ISDIR(st.st_mode) ? 0x00000010 : 0x00000080;
+        written = sizeof(*fbi);
+        break;
+    }
+    case 5: { // FileStandardInformation
         struct {
             int64_t AllocationSize;
             int64_t EndOfFile;
@@ -356,6 +438,85 @@ NTSTATUS NtQueryInformationFile(HANDLE handle, void *io_status, void *file_info,
         fsi->NumberOfLinks = st.st_nlink;
         fsi->DeletePending = 0;
         fsi->Directory = S_ISDIR(st.st_mode) ? 1 : 0;
+        written = sizeof(*fsi);
+        break;
+    }
+    case 9: { // FileNameInformation
+        std::string rel = it->second->host_path;
+        uint32_t n = (uint32_t)rel.size();
+        *(uint32_t *)file_info = n;
+        uint32_t copy = (n < length - 4) ? n : (length - 4);
+        memcpy((uint8_t *)file_info + 4, rel.data(), copy);
+        written = 4 + copy;
+        break;
+    }
+    case 14: { // FilePositionInformation
+        struct {
+            int64_t CurrentByteOffset;
+        } *fpi = (decltype(fpi))file_info;
+        off_t cur = (it->second->fd >= 0) ? lseek(it->second->fd, 0, SEEK_CUR) : 0;
+        fpi->CurrentByteOffset = (cur >= 0) ? cur : 0;
+        written = sizeof(*fpi);
+        break;
+    }
+    case 34: { // FileNetworkOpenInformation
+        struct {
+            int64_t CreationTime;
+            int64_t LastAccessTime;
+            int64_t LastWriteTime;
+            int64_t ChangeTime;
+            int64_t AllocationSize;
+            int64_t EndOfFile;
+            uint32_t FileAttributes;
+        } *fni = (decltype(fni))file_info;
+        int64_t t = ((int64_t)st.st_mtime + 11644473600LL) * 10000000LL;
+        fni->CreationTime = t;
+        fni->LastAccessTime = t;
+        fni->LastWriteTime = t;
+        fni->ChangeTime = t;
+        fni->AllocationSize = (int64_t)st.st_blocks * 512;
+        fni->EndOfFile = st.st_size;
+        fni->FileAttributes = S_ISDIR(st.st_mode) ? 0x00000010 : 0x00000080;
+        written = sizeof(*fni);
+        break;
+    }
+    default:
+        memset(file_info, 0, length);
+        written = length;
+        break;
+    }
+
+    if (io_status) {
+        ((XIO_STATUS_BLOCK *)io_status)->Status = 0;
+        ((XIO_STATUS_BLOCK *)io_status)->Information = written;
+    }
+    return 0;
+}
+
+NTSTATUS NtSetInformationFile(HANDLE handle, void *io_status, void *file_info, uint32_t length, uint32_t info_class)
+{
+    (void)length;
+    if (!file_info) return 0xC000000DL;
+
+    std::lock_guard<std::recursive_mutex> lock(g_file_mutex);
+    auto it = g_open_files.find(handle);
+    if (it == g_open_files.end() || it->second->is_dir) return 0xC0000008L;
+
+    int fd = it->second->fd;
+    if (info_class == 14) { // FilePositionInformation
+        struct {
+            int64_t CurrentByteOffset;
+        } *fpi = (decltype(fpi))file_info;
+        if (lseek(fd, (off_t)fpi->CurrentByteOffset, SEEK_SET) == (off_t)-1) {
+            return 0xC0000001L;
+        }
+    } else if (info_class == 19) { // FileEndOfFileInformation
+        struct {
+            int64_t EndOfFile;
+        } *fei = (decltype(fei))file_info;
+        if (ftruncate(fd, (off_t)fei->EndOfFile) != 0) {
+            return 0xC0000001L;
+        }
     }
 
     if (io_status) {

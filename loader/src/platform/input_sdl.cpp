@@ -256,3 +256,63 @@ void inject_synthetic_state(uint32_t user_index, const XboxGamepadState &state)
 }
 
 } // namespace input_sdl
+
+#include "platform/windefs.h"
+
+extern "C" SHORT GetAsyncKeyState(int vk)
+{
+    const uint8_t *keys = SDL_GetKeyboardState(nullptr);
+    if (!keys) return 0;
+
+    if (vk == VK_LBUTTON) {
+        return (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON(SDL_BUTTON_LEFT)) ? (SHORT)0x8000 : 0;
+    }
+    if (vk == VK_RBUTTON) {
+        return (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON(SDL_BUTTON_RIGHT)) ? (SHORT)0x8000 : 0;
+    }
+    if (vk == VK_MBUTTON) {
+        return (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON(SDL_BUTTON_MIDDLE)) ? (SHORT)0x8000 : 0;
+    }
+    if (vk == VK_XBUTTON1) {
+        return (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON(SDL_BUTTON_X1)) ? (SHORT)0x8000 : 0;
+    }
+    if (vk == VK_XBUTTON2) {
+        return (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON(SDL_BUTTON_X2)) ? (SHORT)0x8000 : 0;
+    }
+
+    SDL_Scancode sc = SDL_SCANCODE_UNKNOWN;
+    if (vk >= 'A' && vk <= 'Z') sc = (SDL_Scancode)(SDL_SCANCODE_A + (vk - 'A'));
+    else if (vk >= '0' && vk <= '9') sc = (vk == '0') ? SDL_SCANCODE_0 : (SDL_Scancode)(SDL_SCANCODE_1 + (vk - '1'));
+    else {
+        switch (vk) {
+            case VK_RETURN: sc = SDL_SCANCODE_RETURN; break;
+            case VK_ESCAPE: sc = SDL_SCANCODE_ESCAPE; break;
+            case VK_BACK: sc = SDL_SCANCODE_BACKSPACE; break;
+            case VK_TAB: sc = SDL_SCANCODE_TAB; break;
+            case VK_SPACE: sc = SDL_SCANCODE_SPACE; break;
+            case VK_UP: sc = SDL_SCANCODE_UP; break;
+            case VK_DOWN: sc = SDL_SCANCODE_DOWN; break;
+            case VK_LEFT: sc = SDL_SCANCODE_LEFT; break;
+            case VK_RIGHT: sc = SDL_SCANCODE_RIGHT; break;
+            case VK_SHIFT:
+            case VK_LSHIFT: sc = SDL_SCANCODE_LSHIFT; break;
+            case VK_RSHIFT: sc = SDL_SCANCODE_RSHIFT; break;
+            case VK_CONTROL:
+            case VK_LCONTROL: sc = SDL_SCANCODE_LCTRL; break;
+            case VK_RCONTROL: sc = SDL_SCANCODE_RCTRL; break;
+            case VK_MENU:
+            case VK_LMENU: sc = SDL_SCANCODE_LALT; break;
+            case VK_RMENU: sc = SDL_SCANCODE_RALT; break;
+            case VK_DELETE: sc = SDL_SCANCODE_DELETE; break;
+            default: break;
+        }
+    }
+    if (sc != SDL_SCANCODE_UNKNOWN && keys[sc]) {
+        return (SHORT)0x8000;
+    }
+    if (vk == VK_SHIFT && keys[SDL_SCANCODE_RSHIFT]) return (SHORT)0x8000;
+    if (vk == VK_CONTROL && keys[SDL_SCANCODE_RCTRL]) return (SHORT)0x8000;
+    if (vk == VK_MENU && keys[SDL_SCANCODE_RALT]) return (SHORT)0x8000;
+
+    return 0;
+}

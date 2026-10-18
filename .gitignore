@@ -56,6 +56,10 @@ tests/test_dxvk_device
 tests/test_dxvk_draw_pipeline
 tests/test_d3dcompiler_posix
 tests/test_gate4_runner
+tests/test_fe_apt
+build/
+black_linux
+scratch/
 *dxvk*.log
 *_d3d9.log
 *.dxvk.bin

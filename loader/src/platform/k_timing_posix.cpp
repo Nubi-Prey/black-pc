@@ -265,3 +265,13 @@ bool install_60fps_patches()
 }
 
 } // namespace xposix
+
+void install_timing_patches()
+{
+    xposix::install_timing_patches();
+}
+
+bool install_60fps_patches()
+{
+    return xposix::install_60fps_patches();
+}

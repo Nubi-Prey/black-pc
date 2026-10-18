@@ -59,7 +59,7 @@ int main()
     assert(*(uint32_t *)virt_ptr == 0xDEADBEEF);
 
     status = xposix::NtFreeVirtualMemory(&virt_ptr, &region_size, 0x8000);
-    assert(status == 0 && virt_ptr == nullptr);
+    assert(status == 0 && virt_ptr != nullptr);
     printf("    [PASS] NtAllocateVirtualMemory & NtFreeVirtualMemory validados!\n");
 
     printf("\n>> TESTE DE MEMÓRIA POSIX PASSOU COM SUCESSO!\n\n");

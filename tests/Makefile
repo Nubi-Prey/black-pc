@@ -17,7 +17,9 @@ PHASE3_TARGETS = test_sdl_window test_sdl_input test_sdl_audio test_gate3_runner
 
 PHASE4_TARGETS = test_dxvk_device test_dxvk_draw_pipeline test_d3dcompiler_posix test_gate4_runner
 
-TARGETS = $(PHASE0_2_TARGETS) $(PHASE3_TARGETS) $(PHASE4_TARGETS)
+PHASE5_TARGETS = test_fe_apt
+
+TARGETS = $(PHASE0_2_TARGETS) $(PHASE3_TARGETS) $(PHASE4_TARGETS) $(PHASE5_TARGETS)
 
 all: $(TARGETS)
 
@@ -45,7 +47,7 @@ test_boot_entry: test_boot_entry.cpp ../loader/src/platform/xbe_loader.cpp
 test_k_sync_posix: test_k_sync_posix.cpp ../loader/src/platform/k_sync_posix.cpp
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
 
-test_k_file_posix: test_k_file_posix.cpp ../loader/src/platform/k_file_posix.cpp
+test_k_file_posix: test_k_file_posix.cpp ../loader/src/platform/k_file_posix.cpp ../loader/src/platform/k_sync_posix.cpp
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
 
 test_k_thread_posix: test_k_thread_posix.cpp ../loader/src/platform/k_thread_posix.cpp
@@ -96,6 +98,9 @@ test_gate4_runner: test_gate4_runner.cpp ../loader/src/platform/host_d3d9_linux.
                    ../loader/src/platform/d3dcompiler_posix.cpp
 	$(CXX) $(CXXFLAGS) $(DXVK_CFLAGS) $^ -o $@ $(LDFLAGS) $(DXVK_LDFLAGS)
 
+test_fe_apt: test_fe_apt.cpp ../loader/src/fe/pages.cpp ../loader/src/fe/apt.cpp ../loader/src/fe/pc_settings.cpp ../loader/src/log.cpp
+	$(CXX) $(CXXFLAGS) $(DXVK_CFLAGS) $^ -o $@ $(LDFLAGS)
+
 run: all
 	@echo "=========================================================="
 	@echo "    EXECUTANDO BATERIA DE TESTES DO PORT LINUX x86        "
@@ -142,6 +147,9 @@ run: all
 	DXVK_WSI_DRIVER=SDL2 ./test_d3dcompiler_posix
 	@echo ""
 	DXVK_WSI_DRIVER=SDL2 ./test_gate4_runner
+	@echo ""
+	@echo "---------------- [ FASE 5: FRONTEND FLASH/APT UI ] ----------------"
+	./test_fe_apt
 	@echo ""
 	@echo "=========================================================="
 	@echo "       TODOS OS TESTES FORAM CONCLUÍDOS COM SUCESSO!      "

@@ -17,6 +17,9 @@
 #include "fe/pc_settings.h"
 #include "input/bindings.h"
 #include "fe/vars.h"
+#if !defined(_WIN32)
+#include "platform/host_sdl.h"
+#endif
 
 #include <cstdlib>
 #include <cstring>
@@ -91,7 +94,11 @@ void pc_back(const char *, const char *, const char *) { pauseui::back(); }
 void pc_quit(const char *, const char *, const char *)
 {
     logf("fe: QUIT on the main menu");
+#if defined(_WIN32)
     PostMessageW(host3d::window(), WM_CLOSE, 0, 0);
+#else
+    host_sdl::close_window();
+#endif
 }
 
 // a page found its menu gone and made it again (fe/pages.cpp emit_heal)
@@ -117,7 +124,7 @@ const Handler kHandlers[] = {
 } // namespace
 
 // The thunk's callee: true when the port took the call (the dispatcher then returns at once).
-static int __cdecl fe_dispatch(uint8_t *fe)
+extern "C" int __cdecl fe_dispatch(uint8_t *fe)
 {
     fe_vars_poll();
     static int s_tick;
@@ -156,6 +163,7 @@ static int __cdecl fe_dispatch(uint8_t *fe)
 
 extern "C" uint32_t g_fe_dispatch_resume = kDispatch + 7; // the dispatcher's jne
 
+#if defined(_MSC_VER)
 __declspec(naked) static void dispatch_thunk()
 {
     __asm {
@@ -170,6 +178,22 @@ __declspec(naked) static void dispatch_thunk()
         ret
     }
 }
+#else
+__attribute__((naked)) static void dispatch_thunk()
+{
+    __asm__ volatile (
+        "push %esi\n\t"
+        "call fe_dispatch\n\t"
+        "add $4, %esp\n\t"
+        "test %eax, %eax\n\t"
+        "jnz 1f\n\t"
+        "cmpl $1, 0x370(%esi)\n\t"
+        "jmp *g_fe_dispatch_resume\n\t"
+        "1:\n\t"
+        "ret\n\t"
+    );
+}
+#endif
 
 // The menus' input. Once per front-end update FUN_00118B70 clears its input id (the int registered as externObject
 // FEInputId: 1 up, 2 down, 3 left, 4 right, 5 select, 6 back) and, while menu input is on, has FUN_00118A80 (eax = a
@@ -206,6 +230,7 @@ extern "C" void __cdecl fe_menu_keys(uint8_t *input)
     *(int32_t *)input = key;
 }
 
+#if defined(_MSC_VER)
 __declspec(naked) static void menu_input_thunk()
 {
     __asm {
@@ -216,6 +241,18 @@ __declspec(naked) static void menu_input_thunk()
         ret
     }
 }
+#else
+__attribute__((naked)) static void menu_input_thunk()
+{
+    __asm__ volatile (
+        "call *g_fe_menu_input\n\t"
+        "push %ebx\n\t"
+        "call fe_menu_keys\n\t"
+        "add $4, %esp\n\t"
+        "ret\n\t"
+    );
+}
+#endif
 
 void install_fe_calls()
 {

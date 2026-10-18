@@ -634,10 +634,12 @@ extern "C" uint64_t __attribute__((stdcall)) kposix_stub_called(uint32_t ordinal
                                        (void *)(uintptr_t)args[2], (void *)(uintptr_t)args[3],
                                        (void *)(uintptr_t)args[4], (void *)(uintptr_t)args[5],
                                        args[6], (const LARGE_INTEGER *)(uintptr_t)args[7]);
-        printf("  [VFS] NtReadFile handle=%p length=%u -> status=0x%08X\n", (void *)(uintptr_t)args[0], args[6], ret_val);
+        printf("  [VFS] NtReadFile handle=%p buf=%p length=%u -> status=0x%08X\n",
+               (void *)(uintptr_t)args[0], (void *)(uintptr_t)args[5], args[6], ret_val);
         break;
     case 226: // NtSetInformationFile
-        ret_val = 0;
+        ret_val = (uint32_t)NtSetInformationFile((HANDLE)(uintptr_t)args[0], (void *)(uintptr_t)args[1],
+                                                 (void *)(uintptr_t)args[2], args[3], args[4]);
         break;
     case 236: // NtWriteFile
         ret_val = (uint32_t)NtWriteFile((HANDLE)(uintptr_t)args[0], (HANDLE)(uintptr_t)args[1],

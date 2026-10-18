@@ -34,6 +34,8 @@ struct XThread {
     uint32_t start_context = 0;
     uint32_t system_routine = 0;
     bool cdecl_entry = false;
+    bool holds_dispatch_lock = false;
+    int  base_priority = 0;
     char name[32] = {};
 };
 

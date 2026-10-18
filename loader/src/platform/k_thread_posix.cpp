@@ -28,9 +28,10 @@ void *posix_thread_trampoline(void *arg)
 {
     XThread *t = (XThread *)arg;
 
-    // 1. Setup per-thread KPCR segment via SYS_set_thread_area
+    // 1. Setup per-thread KPCR segment via SYS_modify_ldt (avoids GDT TLS exhaustion)
+    uint32_t ldt_idx = (t->host_tid - 1) % 8192;
     struct user_desc u_info{};
-    u_info.entry_number = -1;
+    u_info.entry_number = ldt_idx;
     u_info.base_addr = (unsigned long)&t->kpcr;
     u_info.limit = 0x1000;
     u_info.seg_32bit = 1;
@@ -40,12 +41,13 @@ void *posix_thread_trampoline(void *arg)
     u_info.seg_not_present = 0;
     u_info.useable = 1;
 
-    int r = syscall(SYS_set_thread_area, &u_info);
+    int r = syscall(SYS_modify_ldt, 1, &u_info, sizeof(u_info));
     if (r == 0) {
-        unsigned short fs_sel = (u_info.entry_number << 3) | 3;
+        unsigned short fs_sel = (ldt_idx << 3) | 7; // LDT selector, RPL 3
         __asm__ volatile ("movw %0, %%fs" : : "rm"(fs_sel));
     } else {
-        fprintf(stderr, "k_thread_posix: SYS_set_thread_area failed for thread '%s'\n", t->name);
+        fprintf(stderr, "k_thread_posix: SYS_modify_ldt failed for thread '%s' (errno=%d: %s, ldt_idx=%u)\n",
+                t->name, errno, strerror(errno), ldt_idx);
     }
 
     // 2. Initialize KPCR references
@@ -215,3 +217,48 @@ void PsTerminateSystemThread(NTSTATUS exit_status)
 }
 
 } // namespace xposix
+
+XThread *xthread_current_or_null()
+{
+    return xposix::kthread_current();
+}
+
+XThread *xthread_current()
+{
+    return xposix::kthread_current();
+}
+
+static std::recursive_mutex g_dispatch_lock;
+
+uint8_t xthread_raise_irql(uint8_t new_irql)
+{
+    XThread *t = xposix::kthread_current();
+    if (!t) return 0;
+    uint8_t old = t->kpcr.Irql;
+    if (new_irql >= 2 && !t->holds_dispatch_lock) {
+        g_dispatch_lock.lock();
+        t->holds_dispatch_lock = true;
+    }
+    t->kpcr.Irql = new_irql;
+    return old;
+}
+
+void xthread_lower_irql(uint8_t new_irql)
+{
+    XThread *t = xposix::kthread_current();
+    if (!t) return;
+    t->kpcr.Irql = new_irql;
+    if (new_irql < 2 && t->holds_dispatch_lock) {
+        t->holds_dispatch_lock = false;
+        g_dispatch_lock.unlock();
+    }
+}
+
+NTSTATUS kthread_create(HANDLE *out_handle, uint32_t *out_tid, uint32_t stack_size, uint32_t tls_size,
+                        uint32_t start_routine, uint32_t start_context, uint32_t system_routine,
+                        bool suspended, const char *name, bool cdecl_entry)
+{
+    return xposix::kthread_create(out_handle, out_tid, stack_size, tls_size,
+                                 start_routine, start_context, system_routine,
+                                 suspended, name, cdecl_entry);
+}

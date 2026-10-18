@@ -7,6 +7,7 @@
 #include <cstring>
 #include <mutex>
 #include <sys/mman.h>
+#include <unordered_map>
 
 namespace xposix {
 
@@ -17,6 +18,7 @@ constexpr size_t    XBOX_RAM_SIZE = 64 * 1024 * 1024; // 64 MB
 void *g_ram_ptr = nullptr;
 size_t g_ram_bump = 0x10000; // First 64KB reserved
 std::mutex g_mem_mutex;
+std::unordered_map<void*, size_t> g_vm_allocations;
 
 } // namespace
 
@@ -95,6 +97,10 @@ uint32_t MmGetPhysicalAddress(void *base_address)
     return (uint32_t)addr;
 }
 
+#ifndef MAP_FIXED_NOREPLACE
+#define MAP_FIXED_NOREPLACE 0x100000
+#endif
+
 NTSTATUS NtAllocateVirtualMemory(void **base_address, uint32_t zero_bits, uint32_t *region_size,
                                 uint32_t allocation_type, uint32_t protect)
 {
@@ -104,11 +110,37 @@ NTSTATUS NtAllocateVirtualMemory(void **base_address, uint32_t zero_bits, uint32
     size_t sz = (*region_size + 0xFFF) & ~0xFFFu;
     void *req = *base_address;
 
-    int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-    if (req) flags |= MAP_FIXED;
+    void *p = nullptr;
+    if (req) {
+        p = mmap(req, sz, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+        if (p == MAP_FAILED) return 0xC0000017L;
+    } else {
+        std::lock_guard<std::mutex> lock(g_mem_mutex);
+        static uintptr_t s_user_vm_hint = 0x20000000;
+        s_user_vm_hint = (s_user_vm_hint + 0xFFFF) & ~0xFFFFu;
 
-    void *p = mmap(req, sz, PROT_READ | PROT_WRITE, flags, -1, 0);
-    if (p == MAP_FAILED) return 0xC0000017L;
+        bool found = false;
+        while (s_user_vm_hint + sz < 0x78000000u) {
+            void *candidate = mmap((void *)s_user_vm_hint, sz, PROT_READ | PROT_WRITE,
+                                   MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+            if (candidate != MAP_FAILED) {
+                p = candidate;
+                s_user_vm_hint += sz;
+                found = true;
+                break;
+            }
+            s_user_vm_hint += 0x10000; // Step 64KB
+        }
+        if (!found) {
+            fprintf(stderr, "k_memory_posix: Out of user virtual memory below 2GB! (requested %u bytes)\n", (unsigned)sz);
+            return 0xC0000017L;
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(g_mem_mutex);
+        g_vm_allocations[p] = sz;
+    }
 
     *base_address = p;
     *region_size = (uint32_t)sz;
@@ -117,11 +149,64 @@ NTSTATUS NtAllocateVirtualMemory(void **base_address, uint32_t zero_bits, uint32
 
 NTSTATUS NtFreeVirtualMemory(void **base_address, uint32_t *region_size, uint32_t free_type)
 {
-    (void)free_type;
     if (!base_address || !region_size || !*base_address) return 0xC000000DL;
-    munmap(*base_address, *region_size);
-    *base_address = nullptr;
-    return 0;
+
+    void *base = *base_address;
+    size_t sz = *region_size;
+
+    {
+        std::lock_guard<std::mutex> lock(g_mem_mutex);
+        auto it = g_vm_allocations.find(base);
+        if (it != g_vm_allocations.end()) {
+            if (sz == 0 || (free_type & 0x8000) /* MEM_RELEASE */) {
+                sz = it->second;
+            }
+            g_vm_allocations.erase(it);
+        }
+    }
+
+    if (sz > 0) {
+        munmap(base, sz);
+    }
+
+    *base_address = base;
+    *region_size = (uint32_t)sz;
+    return 0; // STATUS_SUCCESS
 }
 
 } // namespace xposix
+
+namespace xk {
+
+void *__stdcall ExAllocatePoolWithTag(uint32_t NumberOfBytes, uint32_t Tag)
+{
+    return xposix::ExAllocatePoolWithTag(0, NumberOfBytes, Tag);
+}
+
+void __stdcall ExFreePool(void *P)
+{
+    xposix::ExFreePool(P);
+}
+
+void *__stdcall MmAllocateContiguousMemory(uint32_t NumberOfBytes)
+{
+    return xposix::MmAllocateContiguousMemory(NumberOfBytes);
+}
+
+void *__stdcall MmAllocateContiguousMemoryEx(uint32_t NumberOfBytes, uint32_t LowestAcceptableAddress,
+                                             uint32_t HighestAcceptableAddress, uint32_t Alignment, uint32_t ProtectionType)
+{
+    return xposix::MmAllocateContiguousMemoryEx(NumberOfBytes, LowestAcceptableAddress, HighestAcceptableAddress, Alignment, ProtectionType);
+}
+
+void __stdcall MmFreeContiguousMemory(void *BaseAddress)
+{
+    xposix::MmFreeContiguousMemory(BaseAddress);
+}
+
+uint32_t __stdcall MmGetPhysicalAddress(void *BaseAddress)
+{
+    return xposix::MmGetPhysicalAddress(BaseAddress);
+}
+
+} // namespace xk
