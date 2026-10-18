@@ -1,4 +1,4 @@
-// Unit Test: D3DCompile & Shader Pipeline Integration on Linux x86 (Phase 4)
+// Unit Test: D3DCompile and Shader Pipeline Integration on Linux x86
 #include <d3dcompiler.h>
 #include <d3d9.h>
 #include <wsi/native_sdl2.h>
@@ -19,7 +19,7 @@ static void check(bool cond, const char *msg)
 
 int main()
 {
-    std::printf("=== Running test_d3dcompiler_posix (Phase 4) ===\n");
+    std::printf("=== Running test_d3dcompiler_posix ===\n");
 
     const char *vs_hlsl =
         "float4x4 g_m;\n"

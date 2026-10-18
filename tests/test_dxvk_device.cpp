@@ -1,4 +1,4 @@
-// Unit Test: DXVK-Native D3D9 Initialization on Linux x86 (Phase 4)
+// Unit Test: DXVK-Native D3D9 Initialization on Linux x86
 #include <d3d9.h>
 #include <wsi/native_sdl2.h>
 #include <SDL2/SDL.h>
@@ -16,7 +16,7 @@ static void check(bool cond, const char *msg)
 
 int main()
 {
-    std::printf("=== Running test_dxvk_device (Phase 4) ===\n");
+    std::printf("=== Running test_dxvk_device ===\n");
 
     // 1. Initialize SDL2 Video subsystem
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {

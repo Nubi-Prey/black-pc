@@ -1,4 +1,4 @@
-// Unit test for POSIX Virtual Filesystem and Path Resolver (Phase 2)
+// Unit Test: POSIX Virtual Filesystem and Case-Insensitive Resolver
 #include "loader/src/platform/k_file_posix.h"
 
 #include <cassert>

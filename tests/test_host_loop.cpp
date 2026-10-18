@@ -1,4 +1,4 @@
-// Gate 3 Milestone Runner: Integrated Window, Input and Audio Loop for Linux x86
+// Integration Test: Integrated Window, Input and Audio Loop for Linux x86
 #include "../loader/src/platform/host_sdl.h"
 #include "../loader/src/platform/input_sdl.h"
 #include "../loader/src/platform/audio_sdl.h"
@@ -13,7 +13,7 @@
 static void check(bool condition, const char *msg)
 {
     if (!condition) {
-        std::fprintf(stderr, "[FAIL Gate 3] %s\n", msg);
+        std::fprintf(stderr, "[FAIL host_loop] %s\n", msg);
         std::exit(1);
     }
 }
@@ -30,12 +30,12 @@ int main(int argc, char **argv)
 
     std::printf("====================================================\n");
     if (interactive) {
-        std::printf("=== Gate 3: Teste Interativo de Janela, Som e Input ===\n");
+        std::printf("=== Teste Interativo de Janela, Som e Input ===\n");
         std::printf("  - Mova o analógico ou use WASD / Mouse\n");
         std::printf("  - O tom de áudio mudará de frequência dinamicamente\n");
         std::printf("  - Pressione ESC ou feche a janela para finalizar\n");
     } else {
-        std::printf("=== Running Gate 3 Milestone Integration Runner ====\n");
+        std::printf("=== Running Host Loop Integration Test ====\n");
     }
     std::printf("====================================================\n");
 
@@ -43,17 +43,17 @@ int main(int argc, char **argv)
     bool win_ok = host_sdl::open_window(1280, 720, 16, 9, /*hidden=*/!interactive);
     check(win_ok, "Failed to initialize SDL2 host window");
     check(host_sdl::is_open(), "Host window is not open");
-    std::printf("[Gate 3] Window initialized successfully (1280x720 16:9 %s)\n",
+    std::printf("[host_loop] Window initialized successfully (1280x720 16:9 %s)\n",
                 interactive ? "visível" : "hidden");
 
     // 2. Initialize Input System
     bool in_ok = input_sdl::init();
     check(in_ok, "Failed to initialize SDL2 input subsystem");
-    std::printf("[Gate 3] Input subsystem initialized successfully\n");
+    std::printf("[host_loop] Input subsystem initialized successfully\n");
 
     // 3. Initialize Audio System
     bool audio_ok = audio_sdl::open();
-    std::printf("[Gate 3] Audio subsystem initialized: %s\n", audio_ok ? "hardware output" : "clock fallback");
+    std::printf("[host_loop] Audio subsystem initialized: %s\n", audio_ok ? "hardware output" : "clock fallback");
 
     SDL_Renderer *renderer = nullptr;
     if (interactive) {
@@ -130,10 +130,10 @@ int main(int argc, char **argv)
         if (renderer) {
             SDL_DestroyRenderer(renderer);
         }
-        std::printf("[Gate 3] Sessão interativa finalizada com sucesso pelo usuário.\n");
+        std::printf("[host_loop] Sessão interativa finalizada com sucesso pelo usuário.\n");
     } else {
         // Modo Automatizado de Teste (60 frames estritos)
-        std::printf("[Gate 3] Running 60-frame simulated game loop...\n");
+        std::printf("[host_loop] Running 60-frame simulated game loop...\n");
         constexpr int TOTAL_FRAMES = 60;
         uint32_t frames_processed = 0;
         uint32_t audio_blocks_submitted = 0;
@@ -165,7 +165,7 @@ int main(int argc, char **argv)
             usleep(16666);
         }
 
-        std::printf("[Gate 3] Loop finished: %u frames processed, %u audio blocks submitted\n",
+        std::printf("[host_loop] Loop finished: %u frames processed, %u audio blocks submitted\n",
                     frames_processed, audio_blocks_submitted);
 
         check(frames_processed == TOTAL_FRAMES, "Did not complete all 60 frames");
@@ -187,7 +187,7 @@ int main(int argc, char **argv)
     check(!audio_sdl::is_open(), "Audio did not close cleanly");
 
     std::printf("====================================================\n");
-    std::printf("=== [PASS] Gate 3 Milestone Fully Verified! ========\n");
+    std::printf("=== [PASS] Host Loop Fully Verified! ===============\n");
     std::printf("====================================================\n\n");
     return 0;
 }

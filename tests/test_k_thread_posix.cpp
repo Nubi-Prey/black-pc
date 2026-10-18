@@ -1,4 +1,4 @@
-// Unit test for POSIX Thread Management and %fs KPCR Context (Phase 2)
+// Unit Test: POSIX Thread Management and %fs KPCR Context
 #include "loader/src/platform/k_thread_posix.h"
 
 #include <cassert>

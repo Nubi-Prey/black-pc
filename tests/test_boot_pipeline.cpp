@@ -1,5 +1,5 @@
-// Gate 2 Integration Test: Full Kernel HLE POSIX Execution to Direct3D
-// Validates Phase 2: threads, synchronization, VFS mounts, memory and timing.
+// Integration Test: Full Kernel HLE POSIX Execution to Direct3D Device Creation
+// Validates end-to-end boot: threads, synchronization, VFS mounts, memory and timing.
 #include "loader/src/platform/windefs.h"
 #include "loader/src/platform/xbe_loader.h"
 #include "loader/src/platform/k_exports_posix.h"
@@ -22,7 +22,7 @@
 
 namespace {
 
-std::atomic<bool> g_gate2_passed{false};
+std::atomic<bool> g_boot_pipeline_passed{false};
 std::atomic<bool> g_d3d_hook_hit{false};
 uint32_t g_hit_address = 0;
 uint32_t g_boot_entry_addr = 0;
@@ -53,7 +53,7 @@ struct D3DPRESENT_PARAMETERS {
 #pragma pack(pop)
 
 // D3D Hook Prototypes
-extern "C" uint32_t __stdcall gate2_d3d_enum_adapter_modes(uint32_t adapter, uint32_t mode, void *pmode)
+extern "C" uint32_t __stdcall boot_pipeline_d3d_enum_adapter_modes(uint32_t adapter, uint32_t mode, void *pmode)
 {
     (void)adapter;
     if (pmode) {
@@ -69,29 +69,29 @@ extern "C" uint32_t __stdcall gate2_d3d_enum_adapter_modes(uint32_t adapter, uin
     printf("****************************************************************\n\n");
     g_hit_address = 0x00277640;
     g_d3d_hook_hit = true;
-    g_gate2_passed = true;
+    g_boot_pipeline_passed = true;
     return 0; // D3D_OK
 }
 
-extern "C" uint32_t __stdcall gate2_d3d_get_adapter_mode_count(uint32_t adapter)
+extern "C" uint32_t __stdcall boot_pipeline_d3d_get_adapter_mode_count(uint32_t adapter)
 {
     (void)adapter;
     printf("\n>>> [D3D MODE COUNT] Direct3D_GetAdapterModeCount (0x00277580) chamado! Retornando 1\n");
     g_hit_address = 0x00277580;
     g_d3d_hook_hit = true;
-    g_gate2_passed = true;
+    g_boot_pipeline_passed = true;
     return 1;
 }
 
-extern "C" uint32_t __stdcall gate2_d3d_create_device(uint32_t adapter, uint32_t dev_type, void *focus_wnd,
-                                                      uint32_t behavior, void *params, void **out_dev)
+extern "C" uint32_t __stdcall boot_pipeline_d3d_create_device(uint32_t adapter, uint32_t dev_type, void *focus_wnd,
+                                                              uint32_t behavior, void *params, void **out_dev)
 {
     (void)focus_wnd;
     void *caller_return = __builtin_return_address(0);
     uintptr_t caller_ip = (uintptr_t)caller_return;
 
     printf("\n****************************************************************\n");
-    printf(">>> [GATE 2 CRITERION REACHED] Direct3D_CreateDevice (0x0026C620)!\n");
+    printf(">>> [D3D DEVICE CREATION REACHED] Direct3D_CreateDevice (0x0026C620)!\n");
     printf("    Caller return address: %p\n", caller_return);
     printf("    Adapter: %u, DevType: %u, BehaviorFlags: 0x%08X\n", adapter, dev_type, behavior);
 
@@ -125,10 +125,10 @@ extern "C" uint32_t __stdcall gate2_d3d_create_device(uint32_t adapter, uint32_t
 
     g_hit_address = 0x0026C620;
     g_d3d_hook_hit = true;
-    g_gate2_passed = true;
+    g_boot_pipeline_passed = true;
 
     printf("\n==========================================================\n");
-    printf("     >>> PARABÉNS! GATE 2 FOI 100%% VALIDADO E APROVADO! <<<\n");
+    printf("     >>> [PASS] BOOT PIPELINE 100%% VALIDADO E APROVADO! <<<\n");
     printf("==========================================================\n");
     printf("  - Entry Point do XBE:          0x%08X (VALIDADO)\n", g_boot_entry_addr);
     printf("  - Resolução gráfica:           %u x %u @ %u Hz (VALIDADO)\n",
@@ -152,10 +152,10 @@ void hook_function(uint32_t address, const void *hook_fn)
 
 void install_d3d_exit_probes()
 {
-    hook_function(0x00277640, (const void *)&gate2_d3d_enum_adapter_modes);
-    hook_function(0x00277580, (const void *)&gate2_d3d_get_adapter_mode_count);
-    hook_function(0x0026C620, (const void *)&gate2_d3d_create_device);
-    printf("[+] Probes de saída do Gate 2 instalados em D3D: 0x00277640, 0x00277580, 0x0026C620\n");
+    hook_function(0x00277640, (const void *)&boot_pipeline_d3d_enum_adapter_modes);
+    hook_function(0x00277580, (const void *)&boot_pipeline_d3d_get_adapter_mode_count);
+    hook_function(0x0026C620, (const void *)&boot_pipeline_d3d_create_device);
+    printf("[+] Probes de saída instalados em D3D: 0x00277640, 0x00277580, 0x0026C620\n");
 }
 
 static XBoxKPCR g_boot_kpcr;
@@ -244,7 +244,7 @@ void crash_handler(int sig, siginfo_t *info, void *ucontext)
 int main(int argc, char **argv)
 {
     printf("==========================================================\n");
-    printf("     INTEGRAÇÃO FASE 2: GATE 2 TEST RUNNER (KERNEL POSIX) \n");
+    printf("     INTEGRAÇÃO END-TO-END: TEST BOOT PIPELINE (POSIX/D3D)\n");
     printf("==========================================================\n");
 
     const char *xbe_path = (argc > 1) ? argv[1] : "../game/default.xbe";
@@ -312,13 +312,13 @@ int main(int argc, char **argv)
 
     // 8. Aguardar execução da thread principal até Direct3D (máximo de 5 segundos)
     printf("[+] Aguardando a thread 'mainXapiStartup' avançar até a primeira chamada D3D...\n");
-    for (int i = 0; i < 50 && !g_gate2_passed; ++i) {
+    for (int i = 0; i < 50 && !g_boot_pipeline_passed; ++i) {
         usleep(100000); // 100ms
     }
 
-    if (g_gate2_passed) {
+    if (g_boot_pipeline_passed) {
         printf("\n==========================================================\n");
-        printf("     >>> PARABÉNS! GATE 2 FOI 100%% VALIDADO E APROVADO! <<<\n");
+        printf("     >>> [PASS] BOOT PIPELINE 100%% VALIDADO E APROVADO! <<<\n");
         printf("==========================================================\n");
         printf("  - Thread de boot:              SUCESSO\n");
         printf("  - Thread mainXapiStartup:      SUCESSO\n");
@@ -329,7 +329,7 @@ int main(int argc, char **argv)
         printf("==========================================================\n\n");
         return 0;
     } else {
-        fprintf(stderr, "\n[-] GATE 2 TIMEOUT: A thread principal não atingiu Direct3D a tempo.\n");
+        fprintf(stderr, "\n[-] BOOT PIPELINE TIMEOUT: A thread principal não atingiu Direct3D a tempo.\n");
         return 2;
     }
 }

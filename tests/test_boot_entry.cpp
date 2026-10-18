@@ -1,6 +1,6 @@
-// Test 4: Gate 1 Integration Test - Boot Entry Point Execution
+// Integration Test: Xbox Boot Entry Point Execution (CRT Startup)
 // Maps default.xbe at 0x10000, 64MB RAM at 0x80000000, binds %fs KPCR, hooks 115 kernel thunks,
-// and jumps to the Xbox CRT entry point 0x00025A3F.
+// and executes the Xbox CRT entry point 0x00025A3F.
 #include "loader/src/platform/windefs.h"
 #include "loader/src/platform/xbe_loader.h"
 
@@ -260,7 +260,7 @@ int main(int argc, char **argv)
 {
     const char *xbe_path = (argc > 1) ? argv[1] : "game/default.xbe";
     printf("==========================================================\n");
-    printf("  TESTE 4: GATE 1 EXIT TEST - SALTO AO BOOT ENTRY POINT   \n");
+    printf("  TESTE INTEGRAÇÃO: SALTO AO XBE BOOT ENTRY POINT (CRT)   \n");
     printf("==========================================================\n");
 
     // 1. Carregar XBE
@@ -340,7 +340,7 @@ int main(int argc, char **argv)
         printf("    [EXEC] entry_fn() RETORNOU NORMALMENTE COM SUCESSO!\n");
     }
 
-    printf("\n[+] Relatório de execução do Gate 1:\n");
+    printf("\n[+] Relatório de execução do boot entry:\n");
     printf("    - Retornou normalmente:             %s\n", returned_cleanly ? "SIM (100% Sucesso)" : "NÃO");
     printf("    - Chamadas ao Kernel interceptadas: %d\n", g_kernel_calls_intercepted);
     if (!returned_cleanly) {
@@ -350,7 +350,7 @@ int main(int argc, char **argv)
     // Validar que o código do jogo executou com sucesso e retornou limpo
     assert(returned_cleanly && g_kernel_calls_intercepted >= 2 &&
            "O ponto de entrada da CRT deve invocar o kernel e retornar normalmente sem crash!");
-    printf("\n>>> GATE 1 VALIDADO COM SUCESSO ABSOLUTO! O binário real executou nativamente no Linux! <<<\n\n");
+    printf("\n>>> [PASS] test_boot_entry: CRT startup executou nativamente no Linux! <<<\n\n");
 
     munmap(ram, 64 * 1024 * 1024);
     return 0;

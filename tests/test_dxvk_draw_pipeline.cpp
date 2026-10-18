@@ -1,3 +1,4 @@
+// Unit Test: DXVK-Native Hardware Draw Pipeline, Vertex Streams and Index Buffers
 #include <d3dcompiler.h>
 #include <d3d9.h>
 #include <wsi/native_sdl2.h>
@@ -18,7 +19,7 @@ static void check(bool cond, const char *msg)
 
 int main()
 {
-    std::printf("=== Running test_dxvk_draw_pipeline (Phase 4) ===\n");
+    std::printf("=== Running test_dxvk_draw_pipeline ===\n");
     setenv("DXVK_WSI_DRIVER", "SDL2", 1);
 
     // 1. Initialize SDL2

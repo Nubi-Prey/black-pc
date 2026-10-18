@@ -1,4 +1,4 @@
-// Unit test for POSIX Synchronization Primitives (Phase 2)
+// Unit Test: POSIX Synchronization Primitives and Concurrency Stress
 #include "loader/src/platform/k_sync_posix.h"
 
 #include <cassert>

@@ -1,4 +1,4 @@
-// Test 3: Kernel Thunk Trampoline and Dispatcher for Linux x86 (Gate 1 component)
+// Unit Test: Kernel Thunk Trampoline and Dispatcher for Linux x86
 #include <cassert>
 #include <cstdint>
 #include <cstdio>

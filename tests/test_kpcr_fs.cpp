@@ -127,7 +127,7 @@ int main()
 
     if (errors.load() == 0) {
         printf("    [PASS] Todas as %d threads completaram 200.000 iterações com 100%% de isolamento em %%fs!\n", kThreadCount);
-        printf("\n>>> GATE 1 (KPCR/%%fs) VALIDADO COM SUCESSO: O kernel Linux preserva %%fs perfeitamente entre context switches! <<<\n");
+        printf("\n>>> [PASS] test_kpcr_fs: O kernel Linux preserva %%fs perfeitamente entre context switches! <<<\n");
         return 0;
     } else {
         printf("    [FAIL] Falhas detectadas durante o teste de %%fs: %d erros.\n", errors.load());

@@ -98,6 +98,6 @@ int main()
     munmap(xbe_mem, XBE_SIZE);
     munmap(contig_mem, CONTIG_SIZE);
 
-    printf("\n>>> GATE 1 (Memória e Exceções) VALIDADO COM SUCESSO: Espaço de endereçamento e tratamento de sinais ativos! <<<\n");
+    printf("\n>>> [PASS] test_memory_layout: Espaço de endereçamento e tratamento de sinais ativos! <<<\n");
     return 0;
 }

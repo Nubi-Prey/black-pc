@@ -1,4 +1,4 @@
-// Test Suite: ABI, Struct Sizes, Offsets, and Dynamic Thunks for Linux x86
+// Unit Test: 32-bit x86 ABI Compatibility, Struct Layout and Dynamic Thunks
 #include <cstdio>
 #include <cstdint>
 #include <cassert>
@@ -203,6 +203,6 @@ int main()
     printf("    [PASS] Thunk executado com sucesso: res = %u, ecx/edx preservados.\n", res);
     munmap(exec_mem, 4096);
 
-    printf("\n>>> GATE 0 VALIDADO COM SUCESSO: ABI, tamanhos e thunks 32-bit operacionais no Linux! <<<\n");
+    printf("\n>>> [PASS] test_abi: ABI, struct layouts and 32-bit thunks operational!\n");
     return 0;
 }

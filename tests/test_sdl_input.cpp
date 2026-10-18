@@ -1,4 +1,4 @@
-// Unit Test: SDL2 Gamepad, Keyboard and Mouse Input for Linux x86 (Phase 3)
+// Unit Test: SDL2 Gamepad, Keyboard and Mouse Input for Linux x86
 #include "../loader/src/platform/input_sdl.h"
 
 #include <cstdio>
@@ -17,7 +17,7 @@ static void check(bool condition, const char *msg)
 
 int main()
 {
-    std::printf("=== Running test_sdl_input (Phase 3) ===\n");
+    std::printf("=== Running test_sdl_input ===\n");
 
     // 1. Initialize input system
     bool ok = input_sdl::init();

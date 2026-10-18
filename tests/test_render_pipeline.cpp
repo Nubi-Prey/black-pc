@@ -1,4 +1,4 @@
-// Gate 4 Milestone Runner: Complete Graphics Subsystem & NV2A Pipeline (Linux x86)
+// Integration Test: Complete Graphics Subsystem & NV2A Hardware Draw Pipeline (Linux x86)
 // Interactive 3D Vulkan Demo featuring Shaders, Geometry, Gamepad/Keyboard Input, and Audio Synthesis.
 #include "../loader/src/d3d/host.h"
 #include "../loader/src/platform/host_sdl.h"
@@ -19,7 +19,7 @@
 static void check(bool condition, const char *msg)
 {
     if (!condition) {
-        std::fprintf(stderr, "[FAIL Gate 4] %s\n", msg);
+        std::fprintf(stderr, "[FAIL render_pipeline] %s\n", msg);
         std::exit(1);
     }
 }
@@ -172,7 +172,7 @@ int main(int argc, char **argv)
         std::printf("  - Controles: WASD ou Analógico para girar o cubo 3D\n");
         std::printf("  - Pressione ESC ou feche a janela para finalizar\n");
     } else {
-        std::printf("=== Running Gate 4 Milestone Integration Runner ====\n");
+        std::printf("=== Running Render Pipeline Integration Test ====\n");
     }
     std::printf("====================================================\n");
 
@@ -189,17 +189,17 @@ int main(int argc, char **argv)
     check(win_ok, "Failed to open host SDL2 window");
     HWND hwnd = host3d::window();
     check(hwnd != nullptr, "Window handle is null");
-    std::printf("[Gate 4] Host window opened successfully (1280x720, %s)\n",
+    std::printf("[render_pipeline] Host window opened successfully (1280x720, %s)\n",
                 interactive ? "visible" : "headless");
 
     // 3. Initialize Input Subsystem
     bool in_ok = input_sdl::init();
     check(in_ok, "Failed to initialize input subsystem");
-    std::printf("[Gate 4] Input subsystem initialized\n");
+    std::printf("[render_pipeline] Input subsystem initialized\n");
 
     // 4. Initialize Audio Subsystem
     bool audio_ok = audio_sdl::open();
-    std::printf("[Gate 4] Audio subsystem initialized: %s\n",
+    std::printf("[render_pipeline] Audio subsystem initialized: %s\n",
                 audio_ok ? "hardware output" : "clock fallback");
 
     // 5. Initialize Direct3D 9 Device via DXVK-Native
@@ -212,7 +212,7 @@ int main(int argc, char **argv)
     D3DCAPS9 caps{};
     HRESULT hr = dev->GetDeviceCaps(&caps);
     check(SUCCEEDED(hr), "GetDeviceCaps failed");
-    std::printf("[Gate 4] GPU D3D9 Caps: VS Version 0x%08X, PS Version 0x%08X, Max Streams %u\n",
+    std::printf("[render_pipeline] GPU D3D9 Caps: VS Version 0x%08X, PS Version 0x%08X, Max Streams %u\n",
                 (unsigned int)caps.VertexShaderVersion, (unsigned int)caps.PixelShaderVersion, (unsigned int)caps.MaxStreams);
     check(caps.VertexShaderVersion >= D3DVS_VERSION(2, 0), "Vertex Shader 2.0+ required");
     check(caps.PixelShaderVersion >= D3DPS_VERSION(2, 0), "Pixel Shader 2.0+ required");
@@ -268,14 +268,14 @@ int main(int argc, char **argv)
 
     ID3DBlob *vs_blob = nullptr;
     ID3DBlob *err_blob = nullptr;
-    hr = D3DCompile(vs_src, std::strlen(vs_src), "gate4_vs", nullptr, nullptr, "main", "vs_2_0", 0, 0, &vs_blob, &err_blob);
+    hr = D3DCompile(vs_src, std::strlen(vs_src), "pipeline_vs", nullptr, nullptr, "main", "vs_2_0", 0, 0, &vs_blob, &err_blob);
     if (FAILED(hr)) {
         if (err_blob) std::fprintf(stderr, "VS compile error: %s\n", (char*)err_blob->GetBufferPointer());
         check(false, "D3DCompile VS failed");
     }
 
     ID3DBlob *ps_blob = nullptr;
-    hr = D3DCompile(ps_src, std::strlen(ps_src), "gate4_ps", nullptr, nullptr, "main", "ps_2_0", 0, 0, &ps_blob, &err_blob);
+    hr = D3DCompile(ps_src, std::strlen(ps_src), "pipeline_ps", nullptr, nullptr, "main", "ps_2_0", 0, 0, &ps_blob, &err_blob);
     if (FAILED(hr)) {
         if (err_blob) std::fprintf(stderr, "PS compile error: %s\n", (char*)err_blob->GetBufferPointer());
         check(false, "D3DCompile PS failed");
@@ -289,7 +289,7 @@ int main(int argc, char **argv)
     IDirect3DPixelShader9 *ps = nullptr;
     hr = dev->CreatePixelShader((const DWORD *)ps_blob->GetBufferPointer(), &ps);
     check(SUCCEEDED(hr) && ps != nullptr, "dev->CreatePixelShader failed");
-    std::printf("[Gate 4] Shaders compiled and created on GPU successfully\n");
+    std::printf("[render_pipeline] Shaders compiled and created on GPU successfully\n");
 
     // 9. Create Vertex Declaration
     D3DVERTEXELEMENT9 elems[] = {
@@ -317,7 +317,7 @@ int main(int argc, char **argv)
     std::memcpy(ptr, cube_vertices, sizeof(cube_vertices));
     vb->Unlock();
 
-    std::printf("[Gate 4] 3D Cube geometry buffer initialized (36 vertices)\n");
+    std::printf("[render_pipeline] 3D Cube geometry buffer initialized (36 vertices)\n");
 
     // Set hardware render states: depth buffer enabled, CCW culling
     dev->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
@@ -470,7 +470,7 @@ int main(int argc, char **argv)
         }
     }
 
-    std::printf("[Gate 4] Successfully rendered %u frames via Vulkan hardware backend\n", frame_count);
+    std::printf("[render_pipeline] Successfully rendered %u frames via Vulkan hardware backend\n", frame_count);
 
     // 12. Clean up Direct3D and Audio resources
     audio_sdl::close();
@@ -482,8 +482,8 @@ int main(int argc, char **argv)
     ps_blob->Release();
 
     std::printf("====================================================\n");
-    std::printf("Gate 4: ALL ASSERTIONS PASSED (Exit Code 0)\n");
-    std::printf("Milestone Gate 4 verified: Graphics, Shaders, Input & Audio integrated\n");
+    std::printf("render_pipeline: ALL ASSERTIONS PASSED (Exit Code 0)\n");
+    std::printf("Render Pipeline verified: Graphics, Shaders, Input & Audio integrated\n");
     std::printf("====================================================\n");
 
     return 0;

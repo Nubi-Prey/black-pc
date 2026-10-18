@@ -1,3 +1,4 @@
+// Integration Test: Frontend Flash/Apt UI Container and Custom Page Injection
 #include <iostream>
 #include <cassert>
 #include <string>
@@ -39,7 +40,7 @@ void autoaim_set(bool) {}
 void fov_set(float) {}
 
 int main(int argc, char **argv) {
-    std::cout << "[TEST] Running Frontend Apt UI Container & Page Injection Test (Phase 5)..." << std::endl;
+    std::cout << "[TEST] Running Frontend Apt UI Container & Page Injection Test..." << std::endl;
 
     // Determine paths based on execution directory
     std::wstring game_dir = L"../game";
@@ -131,6 +132,6 @@ int main(int argc, char **argv) {
     unlink(out_pse.c_str());
     unlink(out_strings.c_str());
 
-    std::cout << "[PASS] Frontend Flash/Apt UI Test (Gate 5 prerequisite) passed successfully!" << std::endl;
+    std::cout << "[PASS] Frontend Flash/Apt UI Test passed successfully!" << std::endl;
     return 0;
 }

@@ -1,4 +1,4 @@
-// Unit Test: SDL2 Window and Display Host for Linux x86 (Phase 3)
+// Unit Test: SDL2 Window and Display Host for Linux x86
 #include "../loader/src/platform/host_sdl.h"
 
 #include <SDL2/SDL.h>
@@ -16,7 +16,7 @@ static void check(bool condition, const char *msg)
 
 int main()
 {
-    std::printf("=== Running test_sdl_window (Phase 3) ===\n");
+    std::printf("=== Running test_sdl_window ===\n");
 
     // 1. Open hidden window for testing (800x600, 16:9 aspect)
     bool ok = host_sdl::open_window(800, 600, 16, 9, /*hidden=*/true);

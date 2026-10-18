@@ -1,4 +1,4 @@
-// Unit Test: SDL2 48 kHz Stereo Audio Output for Linux x86 (Phase 3)
+// Unit Test: SDL2 48 kHz Stereo Audio Output for Linux x86
 #include "../loader/src/platform/audio_sdl.h"
 #include "../loader/src/audio/output.h"
 
@@ -18,7 +18,7 @@ static void check(bool condition, const char *msg)
 
 int main()
 {
-    std::printf("=== Running test_sdl_audio (Phase 3) ===\n");
+    std::printf("=== Running test_sdl_audio ===\n");
 
     // 1. Open SDL audio
     bool opened = audio_sdl::open();

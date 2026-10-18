@@ -1,4 +1,4 @@
-// Unit test for POSIX Memory Management and Contiguous Physical Allocator (Phase 2)
+// Unit Test: POSIX Memory Management and Contiguous Physical Allocator
 #include "loader/src/platform/k_memory_posix.h"
 
 #include <cassert>
@@ -9,7 +9,7 @@
 int main()
 {
     printf("==========================================================\n");
-    printf("     TESTE FASE 2: GERENCIAMENTO DE MEMÓRIA POSIX & RAM   \n");
+    printf("     TESTE KERNEL: GERENCIAMENTO DE MEMÓRIA POSIX & RAM   \n");
     printf("==========================================================\n");
 
     xposix::memory_init();
