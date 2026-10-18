@@ -30,9 +30,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <climits>
+#include <unistd.h>
+#include <sys/stat.h>
 #include <string>
 #include <vector>
 #include <atomic>
+
 
 namespace {
 
@@ -315,10 +319,40 @@ int main(int argc, char **argv)
         }
     }
 
-    settings_load(); // load black.ini if present; CLI flags above retain precedence
+    // The port keeps its own files beside black_linux (the release's port folder, next to game).
+    char exe_buf[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", exe_buf, sizeof(exe_buf) - 1);
+    std::string exe_path;
+    if (len > 0) {
+        exe_buf[len] = '\0';
+        exe_path = exe_buf;
+        size_t slash = exe_path.find_last_of("/\\");
+        g_cfg.port_dir = widen(slash == std::string::npos ? "." : exe_path.substr(0, slash));
+    } else {
+        g_cfg.port_dir = L".";
+    }
+
+    // Started from a shortcut or another folder: if a relative game path is not found here, look for it
+    // from black_linux's own folder upwards (port -> the folder with game; work/run -> work -> project root) and make
+    // that folder current, so relative paths given on the command line (--hdd, --log) and notes/ resolve against it.
+    bool relative = !(target_xbe.size() >= 1 && target_xbe[0] == '/');
+    struct stat st;
+    if (relative && stat(target_xbe.c_str(), &st) != 0 && !exe_path.empty()) {
+        std::string dir = exe_path;
+        for (int up = 0; up < 4; up++) {
+            size_t cut = dir.find_last_of("/\\");
+            if (cut == std::string::npos) break;
+            dir.resize(cut);
+            std::string cand = dir + "/" + target_xbe;
+            if (stat(cand.c_str(), &st) == 0) {
+                if (chdir(dir.c_str()) == 0) {
+                    break;
+                }
+            }
+        }
+    }
 
     // Adjust target_xbe if directory given
-    struct stat st;
     if (stat(target_xbe.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
         if (target_xbe.back() == '/') target_xbe += "default.xbe";
         else target_xbe += "/default.xbe";
@@ -330,8 +364,20 @@ int main(int argc, char **argv)
 
     g_cfg.xbe_path = widen(target_xbe);
     g_cfg.game_dir = widen(game_dir);
+
+    std::string port_dir_narrow = narrow(g_cfg.port_dir);
+    if (hdd_dir == "savedata" && !port_dir_narrow.empty() && port_dir_narrow != ".") {
+        hdd_dir = port_dir_narrow + "/savedata";
+    }
+    if (log_path == "black.log" && !port_dir_narrow.empty() && port_dir_narrow != ".") {
+        log_path = port_dir_narrow + "/black.log";
+    }
+
     g_cfg.hdd_dir  = widen(hdd_dir);
     g_cfg.log_path = widen(log_path);
+
+    settings_load(); // load black.ini from port_dir if present; CLI flags above retain precedence
+
 
     // Initialize Logging
     log_init(g_cfg.log_path);

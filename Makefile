@@ -1,7 +1,7 @@
 # Makefile para Compilação Incremental do Executável Nativo Linux x86 (black_linux)
 
 CXX ?= g++
-CXXFLAGS = -m32 -march=i686 -msse -msse2 -mstackrealign -std=c++20 -O2 -Wall -Wextra -fno-pie \
+CXXFLAGS = -m32 -march=i686 -msse -msse2 -mstackrealign -std=c++20 -O2 -g -Wall -Wextra -fno-pie \
            -I. -Iloader/src -Iloader/src/platform \
            -Itools/dxvk-native/usr/include/dxvk -Itools/dxvk-native/usr/include/dxvk/wsi \
            -Itools/sdl2/include -Itools/sdl2/include/SDL2 -Itools/sdl2/include/i386-linux-gnu
@@ -9,7 +9,8 @@ CXXFLAGS = -m32 -march=i686 -msse -msse2 -mstackrealign -std=c++20 -O2 -Wall -We
 LDFLAGS = -m32 -no-pie -lpthread \
           -Ltools/dxvk-native/usr/lib32 -ldxvk_d3d9 \
           -Ltools/sdl2/lib -lSDL2 \
-          -Wl,-rpath,'$$ORIGIN/tools/dxvk-native/usr/lib32:$$ORIGIN/tools/sdl2/lib'
+          -Wl,-rpath,'$$ORIGIN/lib:$$ORIGIN/tools/dxvk-native/usr/lib32:$$ORIGIN/tools/sdl2/lib'
+
 
 SRCS = \
     loader/src/platform/main_linux.cpp \
