@@ -614,16 +614,25 @@ extern "C" uint64_t __attribute__((stdcall)) kposix_stub_called(uint32_t ordinal
         }
         break;
     case 203: // NtOpenSymbolicLinkObject
+        ret_val = (uint32_t)NtOpenSymbolicLinkObject((HANDLE *)(uintptr_t)args[0], (void *)(uintptr_t)args[1]);
+        break;
     case 207: // NtQueryDirectoryFile
+        ret_val = (uint32_t)NtQueryDirectoryFile((HANDLE)(uintptr_t)args[0], (HANDLE)(uintptr_t)args[1],
+                                                 (void *)(uintptr_t)args[2], (void *)(uintptr_t)args[3],
+                                                 (void *)(uintptr_t)args[4], (void *)(uintptr_t)args[5],
+                                                 args[6], args[7], (void *)(uintptr_t)args[8],
+                                                 (bool)(args[9] != 0));
+        break;
     case 210: // NtQueryFullAttributesFile
-        ret_val = 0;
+        ret_val = (uint32_t)NtQueryFullAttributesFile((void *)(uintptr_t)args[0], (void *)(uintptr_t)args[1]);
         break;
     case 211: // NtQueryInformationFile
         ret_val = (uint32_t)NtQueryInformationFile((HANDLE)(uintptr_t)args[0], (void *)(uintptr_t)args[1],
                                                    (void *)(uintptr_t)args[2], args[3], args[4]);
         break;
     case 215: // NtQuerySymbolicLinkObject
-        ret_val = 0;
+        ret_val = (uint32_t)NtQuerySymbolicLinkObject((HANDLE)(uintptr_t)args[0], (void *)(uintptr_t)args[1],
+                                                      (uint32_t *)(uintptr_t)args[2]);
         break;
     case 218: // NtQueryVolumeInformationFile
         ret_val = (uint32_t)NtQueryVolumeInformationFile((HANDLE)(uintptr_t)args[0], (void *)(uintptr_t)args[1],

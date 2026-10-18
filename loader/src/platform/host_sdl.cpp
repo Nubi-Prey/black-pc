@@ -54,8 +54,12 @@ bool open_window(int width, int height, int aspect_w, int aspect_h, bool hidden)
     }
 
     g_window_closed = false;
-    printf("[host_sdl] Janela SDL2 criada com sucesso: %dx%d (Aspecto: %d:%d, %s)\n",
-           width, height, g_aspect_w, g_aspect_h, hidden ? "Oculta" : "Visível");
+    if (g_fullscreen) {
+        SDL_SetWindowFullscreen(g_window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    }
+    printf("[host_sdl] Janela SDL2 criada com sucesso: %dx%d (Aspecto: %d:%d, %s, %s)\n",
+           width, height, g_aspect_w, g_aspect_h, hidden ? "Oculta" : "Visível",
+           g_fullscreen ? "Tela Cheia" : "Janela");
     return true;
 }
 
@@ -207,6 +211,12 @@ void pump_events()
                 }
                 break;
             }
+
+            case SDL_KEYDOWN:
+                if (ev.key.keysym.sym == SDLK_RETURN && (ev.key.keysym.mod & KMOD_ALT)) {
+                    set_fullscreen(!is_fullscreen());
+                }
+                break;
 
             default:
                 break;

@@ -37,8 +37,10 @@ NTSTATUS NtSetInformationFile(HANDLE handle, void *io_status, void *file_info, u
 NTSTATUS NtQueryVolumeInformationFile(HANDLE handle, void *io_status, void *fs_info, uint32_t length, uint32_t fs_info_class);
 NTSTATUS NtQueryFullAttributesFile(void *obj_attr, void *file_info);
 NTSTATUS NtQueryDirectoryFile(HANDLE handle, HANDLE event, void *apc_routine, void *apc_context, void *io_status,
-                             void *file_info, uint32_t length, uint32_t info_class, bool return_single_entry,
+                             void *file_info, uint32_t length, uint32_t info_class,
                              void *file_name, bool restart_scan);
+NTSTATUS NtOpenSymbolicLinkObject(HANDLE *link_handle, void *obj_attr);
+NTSTATUS NtQuerySymbolicLinkObject(HANDLE link_handle, void *link_target, uint32_t *returned_length);
 
 bool file_close_handle(HANDLE handle);
 

@@ -51,15 +51,49 @@ struct FileHandle {
     std::string host_path;
     bool is_dir;
     DIR *dir;
+    std::string search_mask;
+};
+
+struct LinkHandle {
+    std::string name;
+    std::string target;
 };
 
 std::recursive_mutex g_file_mutex;
 std::vector<Mount> g_mounts;
 std::map<std::string, std::string> g_symlinks; // lowercase link -> device
 std::unordered_map<HANDLE, FileHandle*> g_open_files;
+std::unordered_map<HANDLE, LinkHandle> g_link_handles;
 uint32_t g_next_file_handle = 0x3000;
+uint32_t g_next_link_handle = 0x5000;
 bool g_initialized = false;
 std::string g_cache_dir;
+
+static bool match_wildcard(const char *pat, const char *str)
+{
+    while (*pat) {
+        if (*pat == '*') {
+            while (*pat == '*') pat++;
+            if (!*pat) return true;
+            while (*str) {
+                if (match_wildcard(pat, str)) return true;
+                str++;
+            }
+            return false;
+        }
+        if (!*str) return false;
+        if (*pat != '?' && tolower((unsigned char)*pat) != tolower((unsigned char)*str))
+            return false;
+        pat++;
+        str++;
+    }
+    return !*str;
+}
+
+static inline int64_t posix_to_filetime(time_t t)
+{
+    return ((int64_t)t * 10000000LL) + 116444736000000000LL;
+}
 
 std::string to_lower(std::string s)
 {
@@ -227,7 +261,7 @@ NTSTATUS NtCreateFile(HANDLE *out_handle, ACCESS_MASK desired_access, void *obj_
         }
         DIR *d = opendir(host_path.c_str());
         if (!d) return 0xC000003AL; // STATUS_OBJECT_PATH_NOT_FOUND
-        FileHandle *fh = new FileHandle{-1, host_path, true, d};
+        FileHandle *fh = new FileHandle{-1, host_path, true, d, {}};
         HANDLE h = (HANDLE)(uintptr_t)(g_next_file_handle += 4);
         g_open_files[h] = fh;
         *out_handle = h;
@@ -248,7 +282,7 @@ NTSTATUS NtCreateFile(HANDLE *out_handle, ACCESS_MASK desired_access, void *obj_
     if (stat(host_path.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
         DIR *d = opendir(host_path.c_str());
         if (!d) return 0xC000003AL; // STATUS_OBJECT_PATH_NOT_FOUND
-        FileHandle *fh = new FileHandle{-1, host_path, true, d};
+        FileHandle *fh = new FileHandle{-1, host_path, true, d, {}};
         HANDLE h = (HANDLE)(uintptr_t)(g_next_file_handle += 4);
         g_open_files[h] = fh;
         *out_handle = h;
@@ -274,7 +308,7 @@ NTSTATUS NtCreateFile(HANDLE *out_handle, ACCESS_MASK desired_access, void *obj_
         return 0xC0000034L; // STATUS_OBJECT_NAME_NOT_FOUND
     }
 
-    FileHandle *fh = new FileHandle{fd, host_path, false, nullptr};
+    FileHandle *fh = new FileHandle{fd, host_path, false, nullptr, {}};
     HANDLE h = (HANDLE)(uintptr_t)(g_next_file_handle += 4);
     g_open_files[h] = fh;
     *out_handle = h;
@@ -614,50 +648,184 @@ NTSTATUS NtQueryFullAttributesFile(void *obj_attr, void *file_info)
 }
 
 NTSTATUS NtQueryDirectoryFile(HANDLE handle, HANDLE event, void *apc_routine, void *apc_context, void *io_status,
-                             void *file_info, uint32_t length, uint32_t info_class, bool return_single_entry,
+                             void *file_info, uint32_t length, uint32_t info_class,
                              void *file_name, bool restart_scan)
 {
-    (void)event; (void)apc_routine; (void)apc_context; (void)length; (void)info_class; (void)file_name;
-    (void)return_single_entry;
+    (void)apc_routine; (void)apc_context;
     std::lock_guard<std::recursive_mutex> lock(g_file_mutex);
     auto it = g_open_files.find(handle);
-    if (it == g_open_files.end() || !it->second->is_dir) return 0xC0000008L;
-
-    DIR *d = it->second->dir;
-    if (restart_scan) rewinddir(d);
-
-    struct dirent *de = readdir(d);
-    if (!de) return 0x80000006L; // STATUS_NO_MORE_FILES
-
-    struct {
-        uint32_t NextEntryOffset;
-        uint32_t FileIndex;
-        int64_t  CreationTime;
-        int64_t  LastAccessTime;
-        int64_t  LastWriteTime;
-        int64_t  ChangeTime;
-        int64_t  EndOfFile;
-        int64_t  AllocationSize;
-        uint32_t FileAttributes;
-        uint32_t FileNameLength;
-        char     FileName[256];
-    } *fdi = (decltype(fdi))file_info;
-
-    fdi->NextEntryOffset = 0;
-    fdi->FileNameLength = strlen(de->d_name);
-    strncpy(fdi->FileName, de->d_name, sizeof(fdi->FileName));
-    fdi->FileAttributes = (de->d_type == DT_DIR) ? 0x10 : 0x80;
-
-    if (io_status) {
-        ((XIO_STATUS_BLOCK *)io_status)->Status = 0;
-        ((XIO_STATUS_BLOCK *)io_status)->Information = sizeof(*fdi);
+    if (it == g_open_files.end() || !it->second->is_dir) {
+        if (io_status) {
+            ((XIO_STATUS_BLOCK *)io_status)->Status = (NTSTATUS)0xC0000008L; // STATUS_INVALID_HANDLE
+            ((XIO_STATUS_BLOCK *)io_status)->Information = 0;
+        }
+        if (event) NtSetEvent(event, nullptr);
+        return 0xC0000008L;
     }
-    return 0;
+
+    FileHandle *fh = it->second;
+    if (!fh->dir) {
+        fh->dir = opendir(fh->host_path.c_str());
+        if (!fh->dir) {
+            if (io_status) {
+                ((XIO_STATUS_BLOCK *)io_status)->Status = (NTSTATUS)0xC0000034L; // STATUS_OBJECT_NAME_NOT_FOUND
+                ((XIO_STATUS_BLOCK *)io_status)->Information = 0;
+            }
+            if (event) NtSetEvent(event, nullptr);
+            return 0xC0000034L;
+        }
+    }
+
+    if (restart_scan) {
+        rewinddir(fh->dir);
+    }
+
+    if (file_name) {
+        XSTRING *xs = (XSTRING *)file_name;
+        if (xs->Buffer && xs->Length > 0) {
+            fh->search_mask = std::string(xs->Buffer, xs->Length);
+        } else {
+            fh->search_mask.clear();
+        }
+    }
+
+    struct dirent *de = nullptr;
+    bool found = false;
+    while ((de = readdir(fh->dir)) != nullptr) {
+        if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) {
+            continue;
+        }
+        if (!fh->search_mask.empty() && fh->search_mask != "*" && fh->search_mask != "*.*") {
+            if (!match_wildcard(fh->search_mask.c_str(), de->d_name)) {
+                continue;
+            }
+        }
+        found = true;
+        break;
+    }
+
+    if (!found || !de) {
+        if (io_status) {
+            ((XIO_STATUS_BLOCK *)io_status)->Status = (NTSTATUS)0x80000006L; // STATUS_NO_MORE_FILES
+            ((XIO_STATUS_BLOCK *)io_status)->Information = 0;
+        }
+        if (event) NtSetEvent(event, nullptr);
+        return 0x80000006L;
+    }
+
+    uint32_t nchars = (uint32_t)strlen(de->d_name);
+    uint32_t header_size = 64;
+    uint32_t name_offset = 64;
+
+    if (info_class == 2) { // FileFullDirectoryInformation
+        header_size = 68;
+        name_offset = 68;
+    } else if (info_class == 3) { // FileBothDirectoryInformation
+        header_size = 94;
+        name_offset = 94;
+    } else if (info_class == 7) { // FileNamesInformation
+        header_size = 12;
+        name_offset = 12;
+    }
+
+    if (length < header_size) {
+        if (io_status) {
+            ((XIO_STATUS_BLOCK *)io_status)->Status = (NTSTATUS)0xC0000023L; // STATUS_BUFFER_TOO_SMALL
+            ((XIO_STATUS_BLOCK *)io_status)->Information = 0;
+        }
+        if (event) NtSetEvent(event, nullptr);
+        return 0xC0000023L;
+    }
+
+    uint8_t *out = (uint8_t *)file_info;
+    memset(out, 0, std::min<uint32_t>(length, header_size));
+
+    *(uint32_t *)out = 0; // NextEntryOffset: single entry
+    *(uint32_t *)(out + 4) = 0; // FileIndex
+
+    std::string full_path = fh->host_path + "/" + de->d_name;
+    struct stat st;
+    bool has_stat = (stat(full_path.c_str(), &st) == 0);
+
+    if (info_class == 7) {
+        *(uint32_t *)(out + 8) = nchars;
+    } else {
+        int64_t t = has_stat ? posix_to_filetime(st.st_mtime) : 0;
+        *(int64_t *)(out + 8)  = t;
+        *(int64_t *)(out + 16) = t;
+        *(int64_t *)(out + 24) = t;
+        *(int64_t *)(out + 32) = t;
+        *(int64_t *)(out + 40) = has_stat ? st.st_size : 0;
+        *(int64_t *)(out + 48) = has_stat ? ((int64_t)st.st_blocks * 512) : 0;
+        uint32_t attr = (has_stat && S_ISDIR(st.st_mode)) || (de->d_type == DT_DIR) ? 0x10 : 0x80;
+        *(uint32_t *)(out + 56) = attr;
+        *(uint32_t *)(out + 60) = nchars;
+    }
+
+    uint32_t copy = (header_size + nchars <= length) ? nchars : (length - header_size);
+    memcpy(out + name_offset, de->d_name, copy);
+
+    NTSTATUS rs = (copy < nchars) ? (NTSTATUS)0x80000005L /* STATUS_BUFFER_OVERFLOW */ : 0 /* STATUS_SUCCESS */;
+    if (io_status) {
+        ((XIO_STATUS_BLOCK *)io_status)->Status = rs;
+        ((XIO_STATUS_BLOCK *)io_status)->Information = header_size + copy;
+    }
+    if (event) {
+        NtSetEvent(event, nullptr);
+    }
+    return rs;
+}
+
+NTSTATUS NtOpenSymbolicLinkObject(HANDLE *link_handle, void *obj_attr)
+{
+    if (!link_handle || !obj_attr) return 0xC000000DL;
+    XOBJECT_ATTRIBUTES *oa = (XOBJECT_ATTRIBUTES *)obj_attr;
+    if (!oa->ObjectName || !oa->ObjectName->Buffer) return 0xC000000DL;
+
+    std::string name(oa->ObjectName->Buffer, oa->ObjectName->Length);
+    std::lock_guard<std::recursive_mutex> lock(g_file_mutex);
+    file_init();
+
+    auto it = g_symlinks.find(to_lower(name));
+    if (it == g_symlinks.end()) {
+        return 0xC0000034L; // STATUS_OBJECT_NAME_NOT_FOUND
+    }
+
+    HANDLE h = (HANDLE)(uintptr_t)g_next_link_handle;
+    g_next_link_handle += 4;
+    g_link_handles[h] = LinkHandle{name, it->second};
+    *link_handle = h;
+    return 0; // STATUS_SUCCESS
+}
+
+NTSTATUS NtQuerySymbolicLinkObject(HANDLE link_handle, void *link_target, uint32_t *returned_length)
+{
+    std::lock_guard<std::recursive_mutex> lock(g_file_mutex);
+    auto it = g_link_handles.find(link_handle);
+    if (it == g_link_handles.end()) return 0xC0000008L; // STATUS_INVALID_HANDLE
+
+    const std::string &target = it->second.target;
+    if (returned_length) *returned_length = (uint32_t)target.size();
+
+    XSTRING *lt = (XSTRING *)link_target;
+    if (!lt || !lt->Buffer || lt->MaximumLength < target.size()) {
+        return 0xC0000023L; // STATUS_BUFFER_TOO_SMALL
+    }
+
+    memcpy(lt->Buffer, target.data(), target.size());
+    lt->Length = (uint16_t)target.size();
+    return 0; // STATUS_SUCCESS
 }
 
 bool file_close_handle(HANDLE handle)
 {
     std::lock_guard<std::recursive_mutex> lock(g_file_mutex);
+    auto it_link = g_link_handles.find(handle);
+    if (it_link != g_link_handles.end()) {
+        g_link_handles.erase(it_link);
+        return true;
+    }
+
     auto it = g_open_files.find(handle);
     if (it == g_open_files.end()) return false;
 

@@ -416,6 +416,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    if (g_cfg.fullscreen) {
+        host_sdl::set_fullscreen(true);
+    }
+
     if (!host3d::create_device()) {
         logc("[FATAL] Failed to create DXVK Direct3D9 device.");
         return 1;

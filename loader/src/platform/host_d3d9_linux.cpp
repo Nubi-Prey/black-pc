@@ -62,6 +62,9 @@ void frame_layout(RECT *frame, RECT *picture)
     int fw = 0, fh = 0, pw = 0, ph = 0;
     host_sdl::frame_layout(&fw, &fh, &pw, &ph);
 
+    fw = std::min(fw, g_bb_w);
+    fh = std::min(fh, g_bb_h);
+
     g_frame_w = fw;
     g_frame_h = fh;
 
@@ -131,12 +134,25 @@ bool create_device()
         return false;
     }
 
+    int max_w = std::max(1920, g_bb_w);
+    int max_h = std::max(1080, g_bb_h);
+    int num_displays = SDL_GetNumVideoDisplays();
+    for (int i = 0; i < num_displays; ++i) {
+        SDL_DisplayMode dm;
+        if (SDL_GetDesktopDisplayMode(i, &dm) == 0) {
+            if (dm.w > max_w) max_w = dm.w;
+            if (dm.h > max_h) max_h = dm.h;
+        }
+    }
+    g_bb_w = max_w;
+    g_bb_h = max_h;
+
     D3DPRESENT_PARAMETERS pp{};
     pp.BackBufferWidth = g_bb_w;
     pp.BackBufferHeight = g_bb_h;
     pp.BackBufferFormat = D3DFMT_X8R8G8B8;
     pp.BackBufferCount = 1;
-    pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
+    pp.SwapEffect = D3DSWAPEFFECT_COPY;
     pp.hDeviceWindow = hwnd;
     pp.Windowed = TRUE;
     pp.EnableAutoDepthStencil = TRUE;

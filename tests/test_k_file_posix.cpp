@@ -119,6 +119,44 @@ int main()
     xposix::file_close_handle(h_p0);
     printf("    [PASS] Dispositivo cru Partition0 verificado com sucesso!\n");
 
+    // 6. Testar NtQueryDirectoryFile em u:\ (savedata/Partition1)
+    printf("\n[+] Testando NtQueryDirectoryFile em 'u:\\'...\n");
+    char u_buf[] = "u:\\";
+    XSTRING u_xstr = { (uint16_t)strlen(u_buf), (uint16_t)sizeof(u_buf), u_buf };
+    XOBJECT_ATTRIBUTES u_oa = { nullptr, &u_xstr, 0 };
+    HANDLE h_u = nullptr;
+    status = xposix::NtOpenFile(&h_u, 0x100001, &u_oa, &ios, 1, 0x20); // FILE_LIST_DIRECTORY
+    assert(status == 0 && h_u != nullptr && "NtOpenFile deve abrir diretório u:\\");
+
+    struct {
+        uint32_t NextEntryOffset;
+        uint32_t FileIndex;
+        int64_t  CreationTime;
+        int64_t  LastAccessTime;
+        int64_t  LastWriteTime;
+        int64_t  ChangeTime;
+        int64_t  EndOfFile;
+        int64_t  AllocationSize;
+        uint32_t FileAttributes;
+        uint32_t FileNameLength;
+        char     FileName[256];
+    } fdi{};
+
+    int entries_found = 0;
+    status = xposix::NtQueryDirectoryFile(h_u, nullptr, nullptr, nullptr, &ios, &fdi, sizeof(fdi), 1, nullptr, true);
+    while (status == 0) {
+        entries_found++;
+        assert(fdi.FileNameLength > 0);
+        assert(strcmp(fdi.FileName, ".") != 0 && "Não deve retornar '.'");
+        assert(strcmp(fdi.FileName, "..") != 0 && "Não deve retornar '..'");
+        printf("    Encontrada entrada #%d: '%s' (Attr: 0x%02X, Len: %u)\n",
+               entries_found, fdi.FileName, fdi.FileAttributes, fdi.FileNameLength);
+        status = xposix::NtQueryDirectoryFile(h_u, nullptr, nullptr, nullptr, &ios, &fdi, sizeof(fdi), 1, nullptr, false);
+    }
+    assert(status == (NTSTATUS)0x80000006L && "Ao término do diretório deve retornar STATUS_NO_MORE_FILES (0x80000006)");
+    printf("    [PASS] Enumeração completa de u:\\ concluída com sucesso (%d entradas encontradas)!\n", entries_found);
+    xposix::file_close_handle(h_u);
+
     printf("\n>> TESTE DE ARQUIVOS POSIX PASSOU COM SUCESSO!\n\n");
     return 0;
 }
