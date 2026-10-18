@@ -38,6 +38,10 @@ int main()
         game_dir = "./game";
         savedata_dir = "./savedata";
     }
+    if (access((game_dir + "/GlobData.bin").c_str(), F_OK) != 0) {
+        printf("[SKIP] game/GlobData.bin not found (requires retail game dump)\n");
+        return 0;
+    }
     xposix::file_init(game_dir, savedata_dir);
 
     // 1. Testar Resolução de Symbolic Links e Mounts
