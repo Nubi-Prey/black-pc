@@ -1,6 +1,6 @@
-# Guia de Controles e Lista de Keybinds (BLACK - Linux x86)
+# Guia de Controles e Lista de Keybinds (BLACK PC)
 
-Este documento contém a referência completa de controles e teclas de atalho (*keybinds*) para o port nativo de **BLACK** no Linux x86.
+Este documento contém a referência completa de controles e teclas de atalho (*keybinds*) para o port de **BLACK** (Windows e Linux).
 
 O jogo utiliza um sistema desacoplado onde as ações do jogador são vinculadas dinamicamente à tabela de canais do Xbox (`0x002F3BD4`). Isso permite personalizar até **duas teclas por ação** (via teclado/mouse) sem interferir no suporte nativo a controles/gamepads.
 
@@ -131,8 +131,9 @@ key_crouch = C,LCtrl
 ## 6. Comandos e Opções Úteis de Linha de Comando
 
 ```bash
-# Exibir lista de keybinds ativos diretamente no terminal
-./black_linux --keybinds
+# Exibir lista de keybinds ativos diretamente no terminal / prompt
+./black_linux --keybinds    # Linux
+black.exe --keybinds        # Windows
 
 # Exibir ajuda completa de opções CLI
 ./black_linux --help
