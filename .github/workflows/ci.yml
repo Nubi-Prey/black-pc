@@ -86,7 +86,7 @@ jobs:
 
       - name: Run Automated Test Suite (22 Tests)
         run: |
-          xvfb-run -a make -C tests check
+          SDL_AUDIODRIVER=dummy xvfb-run -a make -C tests check
 
       - name: Package Linux Release Archive
         run: |

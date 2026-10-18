@@ -88,6 +88,7 @@ int main()
         usleep(25000);
         uint32_t want2 = audio_sdl::blocks_wanted();
         check(want2 >= 1, "Clock fallback must continue providing blocks over time");
+        audio_sdl::close();
     }
 
     // 3. Test compatibility bridge functions with namespace audio_out
