@@ -90,6 +90,7 @@ struct Press {
     bool timed;
     std::string button;
     uint32_t hold_ms;
+    uint32_t repeat_ms; // 0 for single-shot, or repeat interval in ms
 };
 std::vector<Press> g_presses;
 ULONGLONG g_first_poll_ms;
@@ -105,23 +106,57 @@ void parse_presses()
     while (pos < s.size()) {
         size_t comma = s.find(',', pos);
         std::string item = s.substr(pos, comma == std::string::npos ? std::string::npos : comma - pos);
-        size_t colon = item.find(':');
-        if (colon != std::string::npos) {
-            bool timed = colon > 0 && item[colon - 1] == 's';
-            uint32_t at = timed ? (uint32_t)(atof(item.c_str()) * 1000.0) : (uint32_t)atoi(item.c_str());
-            std::string b = item.substr(colon + 1);
-            size_t star = b.find('*');
-            uint32_t hold = 300;
-            if (star != std::string::npos) {
-                hold = (uint32_t)atoi(b.c_str() + star + 1);
-                b.resize(star);
+        while (!item.empty() && isspace((unsigned char)item.front())) item.erase(item.begin());
+        while (!item.empty() && isspace((unsigned char)item.back())) item.pop_back();
+
+        if (!item.empty()) {
+            if (_strnicmp(item.c_str(), "repeat:", 7) == 0 || _strnicmp(item.c_str(), "every:", 6) == 0) {
+                size_t pfx = (item[0] == 'r' || item[0] == 'R') ? 7 : 6;
+                std::string rem = item.substr(pfx);
+                size_t colon = rem.find(':');
+                if (colon != std::string::npos) {
+                    bool timed = colon > 0 && rem[colon - 1] == 's';
+                    uint32_t rep = timed ? (uint32_t)(atof(rem.c_str()) * 1000.0) : (uint32_t)atoi(rem.c_str());
+                    if (rep == 0) rep = 1000;
+                    std::string b = rem.substr(colon + 1);
+                    size_t star = b.find('*');
+                    uint32_t hold = std::min(rep, 350u);
+                    if (star != std::string::npos) {
+                        hold = (uint32_t)atoi(b.c_str() + star + 1);
+                        b.resize(star);
+                    }
+                    g_presses.push_back({rep, true, b, hold, rep});
+                }
+            } else {
+                size_t colon = item.find(':');
+                if (colon != std::string::npos) {
+                    bool timed = colon > 0 && item[colon - 1] == 's';
+                    uint32_t at = timed ? (uint32_t)(atof(item.c_str()) * 1000.0) : (uint32_t)atoi(item.c_str());
+                    std::string b = item.substr(colon + 1);
+                    size_t star = b.find('*');
+                    uint32_t hold = 300;
+                    if (star != std::string::npos) {
+                        hold = (uint32_t)atoi(b.c_str() + star + 1);
+                        b.resize(star);
+                    }
+                    g_presses.push_back({at, timed, b, hold, 0});
+                } else {
+                    // Bare button name without timestamp: periodically pulse every 1s (hold 350ms) starting at 500ms
+                    std::string b = item;
+                    size_t star = b.find('*');
+                    uint32_t hold = 350;
+                    if (star != std::string::npos) {
+                        hold = (uint32_t)atoi(b.c_str() + star + 1);
+                        b.resize(star);
+                    }
+                    g_presses.push_back({500, true, b, hold, 1000});
+                }
             }
-            g_presses.push_back({at, timed, b, hold});
         }
         if (comma == std::string::npos) break;
         pos = comma + 1;
     }
-    if (!g_presses.empty()) logf("[input] %zu scripted presses", g_presses.size());
+    if (!g_presses.empty()) logf("[input] %zu scripted presses configured", g_presses.size());
 }
 
 // Tests: show in-game hint N as the game does (FUN_0012B3C0: eax = N, arguments the HUD (*0x2D12E4 + 0xC) and a
@@ -216,7 +251,7 @@ void read_press_file(uint32_t now_ms)
                     hold = (uint32_t)atoi(line.c_str() + star + 1);
                     line.resize(star);
                 }
-                g_presses.push_back({at, true, line, hold});
+                g_presses.push_back({at, true, line, hold, 0});
                 logf("[input] press-file '%s' at %u ms", line.c_str(), at);
                 at += std::max(250u, hold + 100);
             }
@@ -235,7 +270,19 @@ void apply_presses(XGamepad &g)
     uint32_t ms = (uint32_t)(GetTickCount64() - g_first_poll_ms);
     read_press_file(ms);
     for (const Press &p : g_presses) {
-        if (p.timed ? (ms < p.frame || ms >= p.frame + p.hold_ms) : (f < p.frame || f >= p.frame + 10)) continue;
+        bool active = false;
+        if (p.repeat_ms > 0) {
+            if (ms >= p.frame) {
+                uint32_t offset = (ms - p.frame) % p.repeat_ms;
+                active = (offset < p.hold_ms);
+            }
+        } else if (p.timed) {
+            active = (ms >= p.frame && ms < p.frame + p.hold_ms);
+        } else {
+            active = (f >= p.frame && f < p.frame + 10);
+        }
+        if (!active) continue;
+
         const std::string &b = p.button;
         if (b.size() > 3 && (b[0] == 'l' || b[0] == 'r') && (b[1] == 'x' || b[1] == 'y') && (b[2] == '+' || b[2] == '-')) {
             int16_t v = (int16_t)std::clamp(atoi(b.c_str() + 2) * 32767 / 100, -32767, 32767);
@@ -244,23 +291,66 @@ void apply_presses(XGamepad &g)
         }
         if (b.size() > 3 && b[0] == 'm' && (b[1] == 'x' || b[1] == 'y') && (b[2] == '+' || b[2] == '-'))
             (b[1] == 'x' ? g_script_mx : g_script_my) += atoi(b.c_str() + 2);
-        if (b.size() > 2 && b[0] == 'k' && b[1] == ':') bindings::script_hold(b.substr(2)); // a bound key
-        if (b == "up") g.wButtons |= 0x01;
-        else if (b == "down") g.wButtons |= 0x02;
-        else if (b == "left") g.wButtons |= 0x04;
-        else if (b == "right") g.wButtons |= 0x08;
-        else if (b == "start") g.wButtons |= 0x10;
-        else if (b == "back") g.wButtons |= 0x20;
-        else if (b == "a") g.bAnalogButtons[0] = 255;
-        else if (b == "b") g.bAnalogButtons[1] = 255;
-        else if (b == "x") g.bAnalogButtons[2] = 255;
-        else if (b == "y") g.bAnalogButtons[3] = 255;
-        else if (b == "black") g.bAnalogButtons[4] = 255;
-        else if (b == "white") g.bAnalogButtons[5] = 255;
-        else if (b == "lt") g.bAnalogButtons[6] = 255;
-        else if (b == "rt") g.bAnalogButtons[7] = 255;
-        else if (b == "lthumb") g.wButtons |= 0x40;
-        else if (b == "rthumb") g.wButtons |= 0x80;
+        if (b.size() > 2 && b[0] == 'k' && b[1] == ':') {
+            bindings::script_hold(b.substr(2));
+        }
+
+        std::string bl = b;
+        for (char &c : bl) c = (char)tolower((unsigned char)c);
+
+        if (bl == "up") {
+            g.wButtons |= 0x01;
+            bindings::script_hold("Up");
+        } else if (bl == "down") {
+            g.wButtons |= 0x02;
+            bindings::script_hold("Down");
+        } else if (bl == "left") {
+            g.wButtons |= 0x04;
+            bindings::script_hold("Left");
+        } else if (bl == "right") {
+            g.wButtons |= 0x08;
+            bindings::script_hold("Right");
+        } else if (bl == "start") {
+            g.wButtons |= 0x10;
+            bindings::script_hold("Enter");
+        } else if (bl == "back") {
+            g.wButtons |= 0x20;
+            bindings::script_hold("Esc");
+        } else if (bl == "a") {
+            g.bAnalogButtons[0] = 255;
+            bindings::script_hold("Enter");
+        } else if (bl == "b") {
+            g.bAnalogButtons[1] = 255;
+            bindings::script_hold("Backspace");
+        } else if (bl == "x") {
+            g.bAnalogButtons[2] = 255;
+        } else if (bl == "y") {
+            g.bAnalogButtons[3] = 255;
+        } else if (bl == "black") {
+            g.bAnalogButtons[4] = 255;
+        } else if (bl == "white") {
+            g.bAnalogButtons[5] = 255;
+        } else if (bl == "lt") {
+            g.bAnalogButtons[6] = 255;
+        } else if (bl == "rt") {
+            g.bAnalogButtons[7] = 255;
+        } else if (bl == "lthumb") {
+            g.wButtons |= 0x40;
+        } else if (bl == "rthumb") {
+            g.wButtons |= 0x80;
+        } else if (bl == "enter") {
+            bindings::script_hold("Enter");
+            g.wButtons |= 0x10;
+            g.bAnalogButtons[0] = 255;
+        } else if (bl == "space") {
+            bindings::script_hold("Space");
+            g.bAnalogButtons[0] = 255;
+        } else if (bl == "esc" || bl == "escape") {
+            bindings::script_hold("Esc");
+            g.wButtons |= 0x20;
+        } else {
+            bindings::script_hold(b);
+        }
         static uint32_t logged_frame;
         if (logged_frame != p.frame) {
             logged_frame = p.frame;

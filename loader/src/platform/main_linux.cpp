@@ -239,6 +239,10 @@ int main(int argc, char **argv)
             sym_path = next_arg();
         } else if (arg == "--timeout") {
             g_cfg.timeout_s = (unsigned)atoi(next_arg().c_str());
+        } else if (arg == "--press") {
+            g_cfg.press_script = widen(next_arg());
+        } else if (arg == "--press-file") {
+            g_cfg.press_file = widen(next_arg());
         } else if (arg == "--background") {
             g_cfg.background = true;
             setenv("BLACK_HEADLESS", "1", 1);
@@ -492,6 +496,7 @@ int main(int argc, char **argv)
         SDL_Delay(2);
     }
 
+    g_running = false;
     logc("[main_linux] Shutting down subsystems...");
     settings_save();
     input_sdl::shutdown();
@@ -499,5 +504,5 @@ int main(int argc, char **argv)
     host_sdl::close_window();
 
     logc("[main_linux] BLACK Linux execution finished with exit code %d.", g_exit_code.load());
-    return g_exit_code.load();
+    _exit(g_exit_code.load());
 }

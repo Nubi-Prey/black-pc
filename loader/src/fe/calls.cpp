@@ -213,20 +213,27 @@ extern "C" uint32_t g_fe_menu_input = kMenuInput;
 
 extern "C" void __cdecl fe_menu_keys(uint8_t *input)
 {
-    int key = bindings::take_menu_input();
-    if (!key || *(int32_t *)input != 0 || input[9]) return;
+    int key = bindings::peek_menu_input();
     uint32_t &check = *(uint32_t *)(input + 4);
     if (check == kListenCheck) {
-        if (key != 5) return;
         uint32_t game = *(const uint32_t *)(uintptr_t)kGameObject, controllers = *(const uint32_t *)(uintptr_t)kControllers;
-        if (!game || !controllers) return;
-        uint32_t port0 = controllers + 0x518;
-        *(uint32_t *)(uintptr_t)(game + 0x21060) = port0;
-        *(uint8_t *)(uintptr_t)(port0 + 8) = 1;
-        check = 0;
-        *(uint32_t *)(uintptr_t)kBindingTable = game + 0x20174;
-        logf("fe: Enter at PRESS START: controller port 0 plays");
+        uint32_t port0 = controllers ? controllers + 0x518 : 0;
+        bool pad_start = port0 && (*(const uint16_t *)(port0 + 0xd8) != 0 || *(const uint16_t *)(port0 + 0xa8) != 0);
+        if (key == 5 || pad_start) {
+            bindings::take_menu_input();
+            if (game && port0) {
+                *(uint32_t *)(uintptr_t)(game + 0x21060) = port0;
+                *(uint8_t *)(uintptr_t)(port0 + 8) = 1;
+                check = 0;
+                *(uint32_t *)(uintptr_t)kBindingTable = game + 0x20174;
+                logf("fe: Enter/START at PRESS START: controller port 0 plays");
+            }
+            *(int32_t *)input = 5;
+            return;
+        }
     }
+    if (!key || *(int32_t *)input != 0 || input[9]) return;
+    bindings::take_menu_input();
     *(int32_t *)input = key;
 }
 

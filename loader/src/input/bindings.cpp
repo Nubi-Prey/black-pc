@@ -332,6 +332,12 @@ void script_hold(const std::string &name)
     if (k && k < g_script.size()) g_script[k] = true;
 }
 
+int peek_menu_input()
+{
+    int v = g_menu_input.load();
+    return v && g_frame_count - g_menu_input_frame <= 2 ? v : 0;
+}
+
 int take_menu_input()
 {
     int v = g_menu_input.exchange(0);

@@ -736,7 +736,55 @@ extern "C" uint64_t __attribute__((stdcall)) kposix_stub_called(uint32_t ordinal
         ret_val = 1;
         break;
     case 308: // RtlUnicodeStringToAnsiString
-        ret_val = 0;
+        {
+            XANSI_STRING *dst = (XANSI_STRING *)(uintptr_t)args[0];
+            const XUNICODE_STRING *src = (const XUNICODE_STRING *)(uintptr_t)args[1];
+            bool alloc = (args[2] != 0);
+
+            if (!dst) {
+                ret_val = 0xC000000DL; // STATUS_INVALID_PARAMETER
+                break;
+            }
+            if (!src || !src->Buffer || src->Length == 0) {
+                if (alloc) {
+                    dst->Buffer = (char *)ExAllocatePoolWithTag(0, 1, 0x53747267);
+                    if (dst->Buffer) dst->Buffer[0] = '\0';
+                    dst->Length = 0;
+                    dst->MaximumLength = 1;
+                } else {
+                    dst->Length = 0;
+                    if (dst->MaximumLength > 0 && dst->Buffer) dst->Buffer[0] = '\0';
+                }
+                ret_val = 0;
+                break;
+            }
+
+            uint32_t n = src->Length / 2;
+            if (alloc) {
+                dst->Buffer = (char *)ExAllocatePoolWithTag(0, n + 1, 0x53747267);
+                if (!dst->Buffer) {
+                    ret_val = 0xC0000017L; // STATUS_NO_MEMORY
+                    break;
+                }
+                dst->MaximumLength = (uint16_t)(n + 1);
+            } else if (dst->MaximumLength < n) {
+                ret_val = 0x80000005L; // STATUS_BUFFER_OVERFLOW
+                break;
+            }
+
+            for (uint32_t i = 0; i < n; i++) {
+                uint16_t c = src->Buffer[i];
+                dst->Buffer[i] = (c < 256) ? (char)c : '?';
+            }
+            dst->Length = (uint16_t)n;
+            if (dst->MaximumLength > n && dst->Buffer) {
+                dst->Buffer[n] = '\0';
+            }
+
+            printf("  [kposix] RtlUnicodeStringToAnsiString: converted %u chars: '%.*s'\n",
+                   n, (int)std::min<uint32_t>(n, 64), dst->Buffer ? dst->Buffer : "");
+            ret_val = 0; // STATUS_SUCCESS
+        }
         break;
     case 312: // RtlUnwind
         ret_val = 0;
