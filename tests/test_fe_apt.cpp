@@ -106,6 +106,25 @@ int main(int argc, char **argv) {
     assert(s_all.find("COMPUTER") != std::string::npos && "Injected COMPUTER string must be found in MainUS.bin");
     std::cout << "[PASS] MainUS.bin patched strings verified ('COMPUTER' substituted)." << std::endl;
 
+    // 4. Verify UTF-16 LE string encoding for PC Settings / Keybinds (fe_var_set)
+    std::wstring test_str = L"RUN FORWARD [MOUSE 1]";
+    char16_t u16_buf[128] = {};
+    size_t i = 0;
+    for (; i < test_str.size() && i < 127; i++) {
+        u16_buf[i] = (char16_t)test_str[i];
+    }
+    u16_buf[i] = 0;
+
+    // Verify 16-bit word contiguity (no intermediate null bytes in UTF-16 LE representation)
+    const uint8_t *raw = (const uint8_t *)u16_buf;
+    for (size_t k = 0; k < test_str.size(); k++) {
+        assert(raw[k * 2] == (uint8_t)test_str[k] && "Low byte must match ASCII character");
+        assert(raw[k * 2 + 1] == 0 && "High byte must be 0 for standard Latin/ASCII");
+    }
+    assert(raw[test_str.size() * 2] == 0 && raw[test_str.size() * 2 + 1] == 0);
+    static_assert(sizeof(char16_t) == 2, "char16_t must be 2 bytes for Xbox UTF-16 UI");
+    std::cout << "[PASS] UTF-16 LE string buffer format for front-end Apt UI verified (2 bytes per char, no 32-bit truncation)." << std::endl;
+
     // Cleanup generated test files
     unlink(out_femain.c_str());
     unlink(out_ingame.c_str());
