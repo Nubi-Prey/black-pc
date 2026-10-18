@@ -1,4 +1,4 @@
-name: Windows MSVC Build
+name: Cross-Platform CI (Windows & Linux)
 
 on:
   push:
@@ -7,7 +7,10 @@ on:
       - staging/upstream-pr
     paths:
       - 'loader/**'
-      - '.github/workflows/windows-ci.yml'
+      - 'tests/**'
+      - 'tools/**'
+      - 'Makefile'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches:
       - main
@@ -16,7 +19,7 @@ on:
 
 jobs:
   build-win32:
-    name: Build Win32 (MSVC VS2022)
+    name: Windows Win32 (MSVC VS2022)
     runs-on: windows-latest
 
     steps:
@@ -31,7 +34,7 @@ jobs:
         run: |
           cmake --build loader/build --config RelWithDebInfo --parallel
 
-      - name: Stage Artifacts
+      - name: Stage Windows Artifacts
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist-win32
@@ -45,19 +48,51 @@ jobs:
             exit 1
           }
 
-          Write-Host "Found black.exe at $($exe.FullName)"
-          Write-Host "Found blackrt.dll at $($dll.FullName)"
-
           Copy-Item $exe.FullName dist-win32/
           Copy-Item $dll.FullName dist-win32/
           if ($map) { Copy-Item $map.FullName dist-win32/ }
           if ($pdb) { Copy-Item $pdb.FullName dist-win32/ }
 
-          Get-ChildItem -Path dist-win32
-
-      - name: Upload Windows Binaries Artifact
+      - name: Upload Windows Binaries
         uses: actions/upload-artifact@v4
         with:
           name: black-pc-win32
           path: dist-win32/
+          if-no-files-found: error
+
+  build-linux:
+    name: Linux x86 Native (GCC Multilib)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install 32-bit Multilib Dependencies
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-multilib \
+            g++-multilib \
+            libsdl2-dev:i386 \
+            libvulkan-dev:i386
+
+      - name: Build Native Linux Executable (black_linux)
+        run: |
+          make -j$(nproc)
+
+      - name: Run Automated Test Suite (22 Tests)
+        run: |
+          make -C tests check
+
+      - name: Package Linux Release Archive
+        run: |
+          ./tools/make_release.sh
+
+      - name: Upload Linux Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: black-pc-linux-x86
+          path: dist/black-pc-*linux-x86*
           if-no-files-found: error

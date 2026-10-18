@@ -4,12 +4,17 @@ CXX ?= g++
 CXXFLAGS = -m32 -march=i686 -msse -msse2 -mstackrealign -std=c++20 -O2 -g -Wall -Wextra -fno-pie \
            -I. -Iloader/src -Iloader/src/platform \
            -Itools/dxvk-native/usr/include/dxvk -Itools/dxvk-native/usr/include/dxvk/wsi \
+           -I/usr/include/SDL2 -I/usr/include/i386-linux-gnu/SDL2 \
            -Itools/sdl2/include -Itools/sdl2/include/SDL2 -Itools/sdl2/include/i386-linux-gnu
 
 LDFLAGS = -m32 -no-pie -lpthread \
           -Ltools/dxvk-native/usr/lib32 -ldxvk_d3d9 \
           -Ltools/sdl2/lib -lSDL2 \
           -Wl,-rpath,'$$ORIGIN/lib:$$ORIGIN/tools/dxvk-native/usr/lib32:$$ORIGIN/tools/sdl2/lib'
+
+DXVK_DIR = tools/dxvk-native
+DXVK_SO  = $(DXVK_DIR)/usr/lib32/libdxvk_d3d9.so
+DXVK_URL = https://github.com/doitsujin/dxvk/releases/download/v3.1.1/dxvk-native-3.1.1-steamrt-sniper.tar.gz
 
 
 SRCS = \
@@ -64,10 +69,17 @@ TARGET = black_linux
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS)
+$(DXVK_SO):
+	@mkdir -p $(DXVK_DIR)
+	@echo "[deps] Fetching DXVK-Native 3.1.1..."
+	@curl -sL $(DXVK_URL) | tar -zx -C $(DXVK_DIR)/
+
+deps: $(DXVK_SO)
+
+$(TARGET): $(DXVK_SO) $(OBJS)
 	$(CXX) $(OBJS) -o $@ $(LDFLAGS)
 
-build/%.o: %.cpp
+build/%.o: %.cpp $(DXVK_SO)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
@@ -77,4 +89,4 @@ check: all
 clean:
 	rm -rf build $(TARGET)
 
-.PHONY: all check clean
+.PHONY: all check clean deps
