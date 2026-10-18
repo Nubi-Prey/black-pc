@@ -5,10 +5,19 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <unistd.h>
 
 int main(int argc, char **argv)
 {
     const char *xbe_path = (argc > 1) ? argv[1] : "game/default.xbe";
+    if (access(xbe_path, F_OK) != 0 && access("../game/default.xbe", F_OK) == 0) {
+        xbe_path = "../game/default.xbe";
+    }
+    if (access(xbe_path, F_OK) != 0) {
+        printf("[SKIP] %s not found (requires retail game dump)\n", xbe_path);
+        return 0;
+    }
+
     printf("==========================================================\n");
     printf("     TESTE 2: MAPEAMENTO DE MEMÓRIA DO XBE EM 0x10000    \n");
     printf("==========================================================\n");

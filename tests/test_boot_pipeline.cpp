@@ -251,6 +251,10 @@ int main(int argc, char **argv)
     if (access(xbe_path, F_OK) != 0 && access("game/default.xbe", F_OK) == 0) {
         xbe_path = "game/default.xbe";
     }
+    if (access(xbe_path, F_OK) != 0) {
+        printf("[SKIP] %s not found (requires retail game dump)\n", xbe_path);
+        return 0;
+    }
 
     std::string game_dir = "../game";
     std::string savedata_dir = "../savedata";

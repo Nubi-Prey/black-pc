@@ -76,7 +76,9 @@ jobs:
             gcc-multilib \
             g++-multilib \
             libsdl2-dev:i386 \
-            libvulkan-dev:i386
+            libvulkan-dev:i386 \
+            mesa-vulkan-drivers:i386 \
+            xvfb
 
       - name: Build Native Linux Executable (black_linux)
         run: |
@@ -84,7 +86,7 @@ jobs:
 
       - name: Run Automated Test Suite (22 Tests)
         run: |
-          make -C tests check
+          xvfb-run -a make -C tests check
 
       - name: Package Linux Release Archive
         run: |

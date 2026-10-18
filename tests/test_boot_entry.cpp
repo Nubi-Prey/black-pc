@@ -259,6 +259,14 @@ BootEnvironment *BootEnvironment::instance = nullptr;
 int main(int argc, char **argv)
 {
     const char *xbe_path = (argc > 1) ? argv[1] : "game/default.xbe";
+    if (access(xbe_path, F_OK) != 0 && access("../game/default.xbe", F_OK) == 0) {
+        xbe_path = "../game/default.xbe";
+    }
+    if (access(xbe_path, F_OK) != 0) {
+        printf("[SKIP] %s not found (requires retail game dump)\n", xbe_path);
+        return 0;
+    }
+
     printf("==========================================================\n");
     printf("  TESTE INTEGRAÇÃO: SALTO AO XBE BOOT ENTRY POINT (CRT)   \n");
     printf("==========================================================\n");

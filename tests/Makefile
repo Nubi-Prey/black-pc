@@ -4,11 +4,11 @@ CXX ?= g++
 CXXFLAGS = -m32 -std=c++20 -O2 -Wall -Wextra -fno-pie -I.. -I../loader/src
 LDFLAGS = -m32 -no-pie -lpthread
 
-SDL_CFLAGS = -I../tools/sdl2/include -I../tools/sdl2/include/i386-linux-gnu
-SDL_LDFLAGS = -L../tools/sdl2/lib -Wl,-rpath,'$$ORIGIN/../tools/sdl2/lib' -lSDL2
+SDL_CFLAGS ?= $(shell pkg-config --cflags sdl2 2>/dev/null || echo "-I/usr/include/SDL2 -I/usr/include/i386-linux-gnu/SDL2") -I../tools/sdl2/include -I../tools/sdl2/include/SDL2 -I../tools/sdl2/include/i386-linux-gnu
+SDL_LDFLAGS ?= $(shell pkg-config --libs sdl2 2>/dev/null || echo "-L/usr/lib/i386-linux-gnu -lSDL2") -L../tools/sdl2/lib -Wl,-rpath,'$$ORIGIN/../tools/sdl2/lib'
 
-DXVK_CFLAGS = -I../tools/dxvk-native/usr/include/dxvk -I../tools/dxvk-native/usr/include/dxvk/wsi -I../tools/sdl2/include -I../tools/sdl2/include/SDL2 -I../tools/sdl2/include/i386-linux-gnu
-DXVK_LDFLAGS = -L../tools/dxvk-native/usr/lib32 -Wl,-rpath,'$$ORIGIN/../tools/dxvk-native/usr/lib32' -ldxvk_d3d9 -L../tools/sdl2/lib -Wl,-rpath,'$$ORIGIN/../tools/sdl2/lib' -lSDL2
+DXVK_CFLAGS = -I../tools/dxvk-native/usr/include/dxvk -I../tools/dxvk-native/usr/include/dxvk/wsi $(SDL_CFLAGS)
+DXVK_LDFLAGS = -L../tools/dxvk-native/usr/lib32 -Wl,-rpath,'$$ORIGIN/../tools/dxvk-native/usr/lib32' -ldxvk_d3d9 $(SDL_LDFLAGS)
 
 # 1. Core & ABI Architecture
 CORE_TARGETS = test_abi test_kpcr_fs test_memory_layout
