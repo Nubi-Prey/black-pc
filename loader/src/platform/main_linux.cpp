@@ -180,8 +180,9 @@ void print_usage(const char *prog)
     printf("  --fullscreen      Launch in fullscreen mode\n");
     printf("  --fps 30|60       Target frame rate (default: 60)\n");
     printf("  --scale <factor>  Render scaling factor (default: 1.0)\n");
-    printf("  --resolution WxH  Internal render resolution (e.g. 1280x720, 1920x1080)\n");
+    printf("  --resolution WxH  Internal render resolution (e.g. 1280x720, 1920x1080, native)\n");
     printf("  --window WxH      Host window dimensions (default: 1280x720)\n");
+    printf("  --hud, --show-fps Enable DXVK on-screen Vulkan overlay HUD\n");
     printf("  --fov <degrees>   Field of view (50 to 120, default: 70)\n");
     printf("  --autoaim         Enable auto-aim (default: disabled)\n");
     printf("  --no-autoaim      Disable auto-aim\n");
@@ -234,20 +235,31 @@ int main(int argc, char **argv)
             g_cfg.background = true;
             setenv("BLACK_HEADLESS", "1", 1);
         } else if (arg == "--fullscreen") {
+            settings_mark_cli("fullscreen");
             g_cfg.fullscreen = true;
         } else if (arg == "--fps") {
+            settings_mark_cli("fps");
             int fps = atoi(next_arg().c_str());
             g_cfg.fps = (fps == 30) ? 30 : 60;
         } else if (arg == "--scale") {
+            settings_mark_cli("scale");
             g_cfg.scale = (float)atof(next_arg().c_str());
             if (g_cfg.scale < 0.5f) g_cfg.scale = 0.5f;
             if (g_cfg.scale > 8.0f) g_cfg.scale = 8.0f;
         } else if (arg == "--resolution") {
+            settings_mark_cli("render");
             std::string res = next_arg();
-            size_t x = res.find_first_of("xX");
-            if (x != std::string::npos) {
-                g_cfg.render_w = atoi(res.substr(0, x).c_str());
-                g_cfg.render_h = atoi(res.substr(x + 1).c_str());
+            if (res == "native") {
+                g_cfg.render_native = true;
+                g_cfg.render_w = 0;
+                g_cfg.render_h = 0;
+            } else {
+                size_t x = res.find_first_of("xX");
+                if (x != std::string::npos) {
+                    g_cfg.render_w = atoi(res.substr(0, x).c_str());
+                    g_cfg.render_h = atoi(res.substr(x + 1).c_str());
+                    g_cfg.render_native = false;
+                }
             }
         } else if (arg == "--window") {
             std::string win = next_arg();
@@ -256,12 +268,17 @@ int main(int argc, char **argv)
                 g_cfg.window_w = atoi(win.substr(0, x).c_str());
                 g_cfg.window_h = atoi(win.substr(x + 1).c_str());
             }
+        } else if (arg == "--hud" || arg == "--show-fps") {
+            setenv("DXVK_HUD", "fps,frametimes", 1);
         } else if (arg == "--fov") {
+            settings_mark_cli("fov");
             g_cfg.fov = (float)atof(next_arg().c_str());
             g_cfg.fov = std::clamp(g_cfg.fov, 50.0f, 120.0f);
         } else if (arg == "--autoaim") {
+            settings_mark_cli("autoaim");
             g_cfg.autoaim = true;
         } else if (arg == "--no-autoaim") {
+            settings_mark_cli("autoaim");
             g_cfg.autoaim = false;
         } else if (arg == "--no-pc-menus") {
             g_cfg.pc_menus = false;
@@ -279,6 +296,8 @@ int main(int argc, char **argv)
             target_xbe = arg;
         }
     }
+
+    settings_load(); // load black.ini if present; CLI flags above retain precedence
 
     // Adjust target_xbe if directory given
     struct stat st;
@@ -460,6 +479,7 @@ int main(int argc, char **argv)
     }
 
     logc("[main_linux] Shutting down subsystems...");
+    settings_save();
     input_sdl::shutdown();
     audio_sdl::close();
     host_sdl::close_window();
